@@ -4,6 +4,7 @@ import java.io.*;
 import java.util.Scanner;
 
 public class ClientInterface {
+    
     public static void main(String[] args) {
         Client client = new Client();
 
