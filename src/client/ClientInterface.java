@@ -1,10 +1,11 @@
 package client;
 
+import common.AuthRequest;
 import java.io.*;
 import java.util.Scanner;
 
 public class ClientInterface {
-    
+
     public static void main(String[] args) {
         Client client = new Client();
 
@@ -15,19 +16,38 @@ public class ClientInterface {
 
             int flag = 0;
             String command;
-            
+
+            // Authentication loop
             while (flag == 0) {
-                // Authentication
                 System.out.print("Enter command (register/login): ");
                 command = scanner.nextLine();
                 switch (command) {
                     case "register":
+                        System.out.print("Username: ");
+                        String regUsername = scanner.nextLine();
+                        System.out.print("Password: ");
+                        String regPassword = scanner.nextLine();
+                        AuthRequest registerRequest = new AuthRequest(regUsername, regPassword);
+                        byte[] regRequestBytes = registerRequest.getRequestBytes();
+                        out.writeInt(regRequestBytes.length);
+                        out.write(regRequestBytes);
+                        flag = 1;
+                        out.flush();
                         break;
                     case "login":
+                        System.out.print("Username: ");
+                        String loginUsername = scanner.nextLine();
+                        System.out.print("Password: ");
+                        String loginPassword = scanner.nextLine();
+                        AuthRequest loginRequest = new AuthRequest(loginUsername, loginPassword);
+                        byte[] loginRequestBytes = loginRequest.getRequestBytes();
+                        out.writeInt(loginRequestBytes.length);
+                        out.write(loginRequestBytes);
                         flag = 1;
+                        out.flush();
                         break;
                     default:
-                        System.out.println("Unknown command");
+                        System.out.println("Unknown command. Please enter 'register' or 'login'.");
                 }
             }
 
@@ -35,18 +55,28 @@ public class ClientInterface {
             while (true) {
                 System.out.print("Enter command (put/get/exit): ");
                 command = scanner.nextLine();
-                String key;
                 switch (command) {
                     case "put":
                         System.out.print("Key: ");
-                        key = scanner.nextLine();
+                        String putKey = scanner.nextLine();
+                        System.out.print("Value: ");
+                        String value = scanner.nextLine();
+                        out.writeUTF("put " + putKey + " " + value);
+                        System.out.println("Put command sent.");
+                        break;
                     case "get":
                         System.out.print("Key: ");
-                        key = scanner.nextLine();
-                    case "exit":
+                        String getKey = scanner.nextLine();
+                        out.writeUTF("get " + getKey);
+                        String response = in.readUTF();
+                        System.out.println("Response: " + response);
                         break;
+                    case "exit":
+                        System.out.println("Exiting...");
+                        client.getSocket().close();
+                        return;
                     default:
-                        System.out.println("Unknown command");
+                        System.out.println("Unknown command. Please enter 'put', 'get', or 'exit'.");
                 }
             }
         } catch (IOException e) {
