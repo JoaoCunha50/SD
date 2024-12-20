@@ -73,7 +73,9 @@ public class ClientInterface {
                         break;
                     case "exit":
                         System.out.println("Exiting...");
-                        client.getSocket().close();
+                        out.writeUTF("exit"); // Envie o comando exit
+                        out.flush();
+                        client.getSocket().close(); // Agora feche o socket
                         return;
                     default:
                         System.out.println("Unknown command. Please enter 'put', 'get', or 'exit'.");
