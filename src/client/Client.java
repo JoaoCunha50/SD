@@ -1,5 +1,7 @@
 package client;
 
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
 
@@ -12,7 +14,7 @@ public class Client {
         try {
             ClientSocket = new Socket(HOST, PORT);
         } catch (IOException e) {
-            e.printStackTrace();
+            System.out.println(e.getMessage());
         }
     }
 
@@ -30,5 +32,15 @@ public class Client {
 
     public void setSocket(Socket clientSocket) {
         ClientSocket = clientSocket;
+    }
+
+    public void closeConnection(DataInputStream in, DataOutputStream out) {
+        try {
+            in.close();
+            out.close();
+            this.ClientSocket.close();
+        } catch (IOException e) {
+            System.out.println(e.getMessage());
+        }
     }
 }

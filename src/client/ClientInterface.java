@@ -1,6 +1,7 @@
 package client;
 
 import common.AuthRequest;
+import common.TasksRequest;
 import java.io.*;
 import java.util.Scanner;
 
@@ -21,8 +22,8 @@ public class ClientInterface {
             while (flag == 0) {
                 System.out.print("Enter command (register/login): ");
                 command = scanner.nextLine();
-                switch (command) {
-                    case "register":
+                flag = switch (command) {
+                    case "register" -> {
                         System.out.print("Username: ");
                         String regUsername = scanner.nextLine();
                         System.out.print("Password: ");
@@ -31,10 +32,14 @@ public class ClientInterface {
                         byte[] regRequestBytes = registerRequest.getRequestBytes();
                         out.writeInt(regRequestBytes.length);
                         out.write(regRequestBytes);
-                        flag = 1;
+
+                        String message = in.readUTF();
+                        System.out.println(message);
+
                         out.flush();
-                        break;
-                    case "login":
+                        yield 1;
+                    }
+                    case "login" -> {
                         System.out.print("Username: ");
                         String loginUsername = scanner.nextLine();
                         System.out.print("Password: ");
@@ -43,46 +48,63 @@ public class ClientInterface {
                         byte[] loginRequestBytes = loginRequest.getRequestBytes();
                         out.writeInt(loginRequestBytes.length);
                         out.write(loginRequestBytes);
-                        flag = 1;
                         out.flush();
-                        break;
-                    default:
+                        yield 1;
+                    }
+                    default -> {
                         System.out.println("Unknown command. Please enter 'register' or 'login'.");
-                }
+                        yield 0;
+                    }
+                };
             }
 
             // Interaction loop
             while (true) {
                 System.out.print("Enter command (put/get/exit): ");
                 command = scanner.nextLine();
+                byte[] taskBytes;
                 switch (command) {
-                    case "put":
+                    case "put" -> {
                         System.out.print("Key: ");
                         String putKey = scanner.nextLine();
                         System.out.print("Value: ");
                         String value = scanner.nextLine();
-                        out.writeUTF("put " + putKey + " " + value);
-                        System.out.println("Put command sent.");
-                        break;
-                    case "get":
-                        System.out.print("Key: ");
-                        String getKey = scanner.nextLine();
-                        out.writeUTF("get " + getKey);
+                        TasksRequest task = new TasksRequest(TasksRequest.PUT, putKey, value);
+                        taskBytes = task.getTaskBytes();
+                        out.writeInt(taskBytes.length);
+                        out.write(taskBytes);
+                        System.out.println("Task sent.");
                         String response = in.readUTF();
                         System.out.println("Response: " + response);
-                        break;
-                    case "exit":
+                    }
+                    case "get" -> {
+                        System.out.print("Key: ");
+                        String getKey = scanner.nextLine();
+                        TasksRequest task = new TasksRequest(TasksRequest.GET, getKey, null);
+                        taskBytes = task.getTaskBytes();
+                        out.writeInt(taskBytes.length);
+                        out.write(taskBytes);
+                        System.out.println("Task sent.");
+                        int length = in.readInt();
+                        byte[] info = new byte[length];
+                        in.read(info);
+                        System.out.println("Response: " + new String(info));
+                    }
+                    case "exit" -> {
+                        TasksRequest task = new TasksRequest(TasksRequest.EXIT, null, null);
+                        taskBytes = task.getTaskBytes();
                         System.out.println("Exiting...");
-                        out.writeUTF("exit"); // Envie o comando exit
+                        out.writeInt(taskBytes.length);
+                        out.write(taskBytes); // Envie o comando exit
                         out.flush();
-                        client.getSocket().close(); // Agora feche o socket
+                        client.closeConnection(in, out);
                         return;
-                    default:
-                        System.out.println("Unknown command. Please enter 'put', 'get', or 'exit'.");
+                    }
+                    default -> System.out.println("Unknown command. Please enter 'put', 'get', or 'exit'.");
                 }
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            System.out.println(e.getMessage());
         }
     }
 }
