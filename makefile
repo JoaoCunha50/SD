@@ -1,6 +1,7 @@
 # Diretórios
 SRC_DIR = src
 BIN_DIR = bin
+DATA_DIR = Data
 
 # Arquivos fontes e classes
 SOURCES = $(SRC_DIR)/client/ClientInterface.java \
@@ -17,7 +18,10 @@ JAVAC = javac
 JFLAGS = -d $(BIN_DIR) -sourcepath $(SRC_DIR)
 
 # Alvo padrão
-all: $(CLASSES)
+all: create_dir $(CLASSES)
+
+create_dir:
+	@mkdir -p $(DATA_DIR)
 
 # Regra genérica para compilar arquivos .java
 $(BIN_DIR)/%.class: $(SRC_DIR)/%.java
@@ -26,7 +30,7 @@ $(BIN_DIR)/%.class: $(SRC_DIR)/%.java
 
 # Limpeza
 clean:
-	rm -rf $(BIN_DIR)
+	rm -rf $(BIN_DIR) $(DATA_DIR)
 
 # Executar o cliente
 client: all

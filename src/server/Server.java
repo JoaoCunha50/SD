@@ -8,12 +8,15 @@ import java.net.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 
-public class Server {
+public class Server implements Serializable{
     private static final int PORT = 12345;
     private int userCounter = 1; // Contador de utilizadores
     private static Semaphore semaforo;
     private final ConcurrentHashMap<Integer, User> userDatabase = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> dataStorage = new ConcurrentHashMap<>();
+
+    private static final String USER_DB_FILE = "Data/userDatabase.obj";
+    private static final String DATA_STORAGE_FILE = "Data/dataStorage.obj";
 
     public static void main(String[] args) {
         // Verifica se o argumento foi fornecido
@@ -33,6 +36,15 @@ public class Server {
 
         // Instância do servidor para acessar membros não estáticos
         Server server = new Server();
+
+        server.loadState();
+
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            System.out.println("Closing Server. Saving current state...");
+            server.saveState();
+            System.out.println("State successfully saved.");
+        }));
+
         server.start();
     }
 
@@ -138,6 +150,53 @@ public class Server {
             }
         } catch (IOException e) {
             System.out.println("Error handling client with ID " + clientId + ": " + e.getMessage());
+        }
+    }
+
+    private void saveState() {
+        try (ObjectOutputStream userOut = new ObjectOutputStream(new FileOutputStream(USER_DB_FILE));
+             ObjectOutputStream dataOut = new ObjectOutputStream(new FileOutputStream(DATA_STORAGE_FILE))) {
+
+            userOut.writeObject(userDatabase);
+            dataOut.writeObject(dataStorage);
+        } catch (IOException e) {
+            System.err.println("Error saving state: " + e.getMessage());
+        }
+    }
+
+    private void loadState() {
+        try (ObjectInputStream userIn = new ObjectInputStream(new FileInputStream(USER_DB_FILE));
+            ObjectInputStream dataIn = new ObjectInputStream(new FileInputStream(DATA_STORAGE_FILE))) {
+
+            Object loadedUserObject = userIn.readObject();
+            Object loadedDataObject = dataIn.readObject();
+
+            if (loadedUserObject instanceof ConcurrentHashMap<?, ?> usersMap) {
+                usersMap.forEach((key, value) -> {
+                    if (key instanceof Integer && value instanceof User) {
+                        userDatabase.put((Integer) key, (User) value);
+                    }
+                });
+            } else {
+                System.err.println("Error loading userDatabase: Incompatible type.");
+            }
+
+            if (loadedDataObject instanceof ConcurrentHashMap<?, ?> dataMap) {
+                dataMap.forEach((key, value) -> {
+                    if (key instanceof String && value instanceof String) {
+                        dataStorage.put((String) key, (String) value);
+                    }
+                });
+            } else {
+                System.err.println("Error loading dataStorage: Incompatible type.");
+            }
+
+            userCounter = userDatabase.size() + 1; // Atualiza o contador para o próximo ID
+            System.out.println("State successfully loaded.");
+        } catch (FileNotFoundException e) {
+            System.out.println("No previous state found. Starting with empty maps");
+        } catch (IOException | ClassNotFoundException e) {
+            System.err.println("Error loading state: " + e.getMessage());
         }
     }
 }
