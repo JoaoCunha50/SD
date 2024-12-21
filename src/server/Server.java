@@ -8,11 +8,10 @@ import java.net.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 
-public class Server implements Serializable{
+public class Server implements Serializable {
     private static final int PORT = 12345;
-    private int userCounter = 1; // Contador de utilizadores
     private static Semaphore semaforo;
-    private final ConcurrentHashMap<Integer, User> userDatabase = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, User> userDatabase = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> dataStorage = new ConcurrentHashMap<>();
 
     private static final String USER_DB_FILE = "Data/userDatabase.obj";
@@ -34,7 +33,6 @@ public class Server implements Serializable{
             System.exit(1);
         }
 
-        // Instância do servidor para acessar membros não estáticos
         Server server = new Server();
 
         server.loadState();
@@ -72,34 +70,75 @@ public class Server implements Serializable{
     }
 
     private void handleClient(Socket clientSocket) {
-        int clientId = userCounter; // Captura o ID atual do cliente
         try (
                 DataInputStream in = new DataInputStream(clientSocket.getInputStream());
                 DataOutputStream out = new DataOutputStream(clientSocket.getOutputStream())) {
 
-            // Lê o tamanho dos bytes que o cliente vai enviar
-            int length = in.readInt();
+            User user = new User();
 
-            // Lê os bytes enviados pelo cliente
-            byte[] requestBytes = new byte[length];
-            in.read(requestBytes);
+            int flag = 0;
+            while (flag == 0) {
+                // Lê o tamanho dos bytes que o cliente vai enviar
+                int length = in.readInt();
 
-            // Converte os bytes para um objeto AuthRequest
-            AuthRequest authRequest = new AuthRequest();
-            authRequest.readRequestBytes(requestBytes);
+                // Lê os bytes enviados pelo cliente
+                byte[] requestBytes = new byte[length];
+                in.read(requestBytes);
 
-            System.out.println("Received AuthRequest:");
-            System.out.println("Username: " + authRequest.getUsername());
-            System.out.println("Password: " + authRequest.getPassword());
+                // Converte os bytes para um objeto AuthRequest
+                AuthRequest authRequest = new AuthRequest();
+                authRequest.readRequestBytes(requestBytes);
+                user = new User(authRequest.getUsername(), authRequest.getPassword());
 
-            User newUser = new User(authRequest.getUsername(), authRequest.getPassword());
-            userDatabase.put(clientId, newUser); // Usa o clientId como chave
-            System.out.println("User added with ID: " + clientId);
-            userCounter++;
+                int requestType = authRequest.getType();
 
-            out.writeUTF("User registered successfully!");
-            out.flush();
-            System.out.println("Sent confirmation to client");
+                switch (requestType) {
+                    case AuthRequest.REGISTER -> {
+                        int success = user.registerAuth(userDatabase);
+                        if (success == 1) {
+                            System.out.println("User added with Username: " + user.getUsername());
+
+                            out.writeUTF("User registered successfully!");
+                            out.flush();
+                            System.out.println("Sent notification to client");
+                            System.out.println();
+
+                            flag = 1;
+                        } else {
+
+                            out.writeUTF("There is already a User with such credentials.");
+                            out.flush();
+                            System.out.println("Sent notification to client");
+                            System.out.println();
+                        }
+                    }
+                    case AuthRequest.LOGIN -> {
+                        int success = user.loginAuth(userDatabase);
+                        if (success == 1) {
+
+                            out.writeUTF("User logged in successfully!");
+                            out.flush();
+                            System.out.println("Sent notification to client");
+                            System.out.println();
+                            
+                            flag = 1;
+                        } else if (success == -1) {
+
+                            out.writeUTF("Password is invalid!");
+                            out.flush();
+                            System.out.println("Sent notification to client");
+                            System.out.println();
+                        } else {
+
+                            out.writeUTF("There is no User with such credentials.");
+                            out.flush();
+                            System.out.println("Sent notification to client");
+                            System.out.println();
+                        }
+                    }
+                }
+
+            }
 
             while (true) {
                 try {
@@ -135,7 +174,7 @@ public class Server implements Serializable{
                                 }
                             }
                             case TasksRequest.EXIT -> {
-                                System.out.println("Client with ID " + clientId + " disconnected.");
+                                System.out.println("Client with username " + user.getUsername() + " disconnected.");
                                 in.close();
                                 out.close();
                                 clientSocket.close();
@@ -144,18 +183,18 @@ public class Server implements Serializable{
                         }
                     }
                 } catch (EOFException e) {
-                    System.out.println("Client with ID " + clientId + " disconnected.");
+                    System.out.println("Client with username " + user.getUsername() + " disconnected.");
                     break;
                 }
             }
         } catch (IOException e) {
-            System.out.println("Error handling client with ID " + clientId + ": " + e.getMessage());
+            System.out.println("Error handling client: " + e.getMessage());
         }
     }
 
     private void saveState() {
         try (ObjectOutputStream userOut = new ObjectOutputStream(new FileOutputStream(USER_DB_FILE));
-             ObjectOutputStream dataOut = new ObjectOutputStream(new FileOutputStream(DATA_STORAGE_FILE))) {
+                ObjectOutputStream dataOut = new ObjectOutputStream(new FileOutputStream(DATA_STORAGE_FILE))) {
 
             userOut.writeObject(userDatabase);
             dataOut.writeObject(dataStorage);
@@ -166,15 +205,15 @@ public class Server implements Serializable{
 
     private void loadState() {
         try (ObjectInputStream userIn = new ObjectInputStream(new FileInputStream(USER_DB_FILE));
-            ObjectInputStream dataIn = new ObjectInputStream(new FileInputStream(DATA_STORAGE_FILE))) {
+                ObjectInputStream dataIn = new ObjectInputStream(new FileInputStream(DATA_STORAGE_FILE))) {
 
             Object loadedUserObject = userIn.readObject();
             Object loadedDataObject = dataIn.readObject();
 
             if (loadedUserObject instanceof ConcurrentHashMap<?, ?> usersMap) {
                 usersMap.forEach((key, value) -> {
-                    if (key instanceof Integer && value instanceof User) {
-                        userDatabase.put((Integer) key, (User) value);
+                    if (key instanceof String && value instanceof User) {
+                        userDatabase.put((String) key, (User) value);
                     }
                 });
             } else {
@@ -191,7 +230,6 @@ public class Server implements Serializable{
                 System.err.println("Error loading dataStorage: Incompatible type.");
             }
 
-            userCounter = userDatabase.size() + 1; // Atualiza o contador para o próximo ID
             System.out.println("State successfully loaded.");
         } catch (FileNotFoundException e) {
             System.out.println("No previous state found. Starting with empty maps");
