@@ -28,7 +28,8 @@ public class ClientInterface {
                         String regUsername = scanner.nextLine();
                         System.out.print("Password: ");
                         String regPassword = scanner.nextLine();
-                        AuthRequest registerRequest = new AuthRequest(regUsername, regPassword);
+                        
+                        AuthRequest registerRequest = new AuthRequest(AuthRequest.REGISTER, regUsername, regPassword);
                         byte[] regRequestBytes = registerRequest.getRequestBytes();
                         out.writeInt(regRequestBytes.length);
                         out.write(regRequestBytes);
@@ -44,10 +45,15 @@ public class ClientInterface {
                         String loginUsername = scanner.nextLine();
                         System.out.print("Password: ");
                         String loginPassword = scanner.nextLine();
-                        AuthRequest loginRequest = new AuthRequest(loginUsername, loginPassword);
+
+                        AuthRequest loginRequest = new AuthRequest(AuthRequest.LOGIN, loginUsername, loginPassword);
                         byte[] loginRequestBytes = loginRequest.getRequestBytes();
                         out.writeInt(loginRequestBytes.length);
                         out.write(loginRequestBytes);
+
+                        String message = in.readUTF();
+                        System.out.println(message);
+
                         out.flush();
                         yield 1;
                     }
