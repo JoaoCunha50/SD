@@ -5,6 +5,8 @@ import common.TasksRequest;
 import common.User;
 import java.io.*;
 import java.net.*;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 
@@ -158,6 +160,14 @@ public class Server implements Serializable {
                                 out.writeUTF("Info successfully stored!");
                                 out.flush();
                             }
+                            case TasksRequest.MULTIPUT -> {
+                                for (Map.Entry<String, String> entry : task.getPairs().entrySet()) {
+                                    dataStorage.put(entry.getKey(), entry.getValue());
+                                }
+                                System.out.println("Info successfully stored : " + task.multiPutToString());
+                                out.writeUTF("Info successfully stored!");
+                                out.flush();
+                            }
                             case TasksRequest.GET -> {
                                 String taskResponse = dataStorage.get(task.getKey());
                                 if (taskResponse != null) {
@@ -170,6 +180,30 @@ public class Server implements Serializable {
                                     out.writeInt("There is no information associated with the requested key"
                                             .getBytes().length);
                                     out.write("There is no information associated with the requested key".getBytes());
+                                    out.flush();
+                                }
+                            }
+                            case TasksRequest.MULTIGET -> {
+                                HashMap<String,String> pairs = new HashMap<>();
+                                StringBuilder sb = new StringBuilder();
+                                for (int i = 0; i < task.getN(); i++){
+                                    String key = task.getKeys().get(i);
+                                    pairs.put(key, dataStorage.get(key));
+                                }
+                                for (Map.Entry<String, String> entry : pairs.entrySet()) {
+                                    sb.append("Key=").append(entry.getKey()).append("  Value=").append(entry.getValue()).append("\n\n");
+                                }
+                                String taskResponse = sb.toString();
+                                if (taskResponse != null) {
+                                    System.out.println("Info stored : " + taskResponse);
+                                    out.writeInt(taskResponse.getBytes().length);
+                                    out.write(taskResponse.getBytes());
+                                    out.flush();
+                                } else {
+                                    System.out.println("No info found, signal the client");
+                                    out.writeInt("There is no information associated with the requested keys"
+                                            .getBytes().length);
+                                    out.write("There is no information associated with the requested keys".getBytes());
                                     out.flush();
                                 }
                             }

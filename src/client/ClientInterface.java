@@ -3,6 +3,8 @@ package client;
 import common.AuthRequest;
 import common.TasksRequest;
 import java.io.*;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Scanner;
 
 public class ClientInterface {
@@ -66,7 +68,7 @@ public class ClientInterface {
 
             // Interaction loop
             while (true) {
-                System.out.print("Enter command (put/get/exit): ");
+                System.out.print("Enter command (put/get/multiPut/exit): ");
                 command = scanner.nextLine();
                 byte[] taskBytes;
                 switch (command) {
@@ -76,6 +78,27 @@ public class ClientInterface {
                         System.out.print("Value: ");
                         String value = scanner.nextLine();
                         TasksRequest task = new TasksRequest(TasksRequest.PUT, putKey, value);
+                        taskBytes = task.getTaskBytes();
+                        out.writeInt(taskBytes.length);
+                        out.write(taskBytes);
+                        System.out.println("Task sent.");
+                        String response = in.readUTF();
+                        System.out.println("Response: " + response);
+                    }
+                    case "multiPut" -> {
+                        System.out.print("How many values you want to insert: ");
+                        String n = scanner.nextLine();
+                        int N = Integer.parseInt(n);
+                        HashMap<String, String> pairs = new HashMap<>();
+
+                        for(int i = 0; i<N; i++){
+                            System.out.print("Key: ");
+                            String putKey = scanner.nextLine();
+                            System.out.print("Value: ");
+                            String value = scanner.nextLine();
+                            pairs.put(putKey, value);
+                        }
+                        TasksRequest task = new TasksRequest(TasksRequest.MULTIPUT, null, null, N, pairs, null);
                         taskBytes = task.getTaskBytes();
                         out.writeInt(taskBytes.length);
                         out.write(taskBytes);
@@ -95,6 +118,27 @@ public class ClientInterface {
                         byte[] info = new byte[length];
                         in.read(info);
                         System.out.println("Response: " + new String(info));
+                    }
+                    case "multiGet" -> {
+                        System.out.print("How many values you want to insert: ");
+                        String n = scanner.nextLine();
+                        int N = Integer.parseInt(n);
+                        ArrayList<String> keys = new ArrayList<>();
+
+                        for(int i = 0; i<N; i++){
+                            System.out.print("Key: ");
+                            String putKey = scanner.nextLine();
+                            keys.add(putKey);
+                        }
+                        TasksRequest task = new TasksRequest(TasksRequest.MULTIGET, null, null, N, null, keys);
+                        taskBytes = task.getTaskBytes();
+                        out.writeInt(taskBytes.length);
+                        out.write(taskBytes);
+                        System.out.println("Task sent.");
+                        int length = in.readInt();
+                        byte[] info = new byte[length];
+                        in.read(info);
+                        System.out.println("Response: " + "\n\n" + new String(info));
                     }
                     case "exit" -> {
                         TasksRequest task = new TasksRequest(TasksRequest.EXIT, null, null);
