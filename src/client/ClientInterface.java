@@ -68,7 +68,7 @@ public class ClientInterface {
 
             // Interaction loop
             while (true) {
-                System.out.print("Enter command (put/get/multiPut/exit): ");
+                System.out.print("Enter command (put/get/multiPut/multiGet/exit): ");
                 command = scanner.nextLine();
                 byte[] taskBytes;
                 switch (command) {
