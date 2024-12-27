@@ -236,6 +236,7 @@ public class Server implements Serializable {
                         case "exit" -> {
                             System.out.println("Client with username " + user.getUsername() + " disconnected.");
                             closeConnection(in, out, clientSocket);
+                            Thread.currentThread().interrupt();
                             return;
                         }
                     }
