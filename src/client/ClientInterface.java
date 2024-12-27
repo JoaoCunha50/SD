@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Scanner;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * The <code>ClientInterface</code> class provides a command-line interface for
@@ -21,6 +22,8 @@ import java.util.Scanner;
  * text-based commands entered into the console.
  */
 public class ClientInterface {
+
+    private static final ReentrantLock scannerLock = new ReentrantLock();
 
     /**
      * The entry point of the application. This method establishes the
@@ -88,7 +91,7 @@ public class ClientInterface {
                         byte[] loginRequestBytes = loginRequest.getRequestBytes();
                         out.writeInt(loginRequestBytes.length);
                         out.write(loginRequestBytes);
-                        
+
                         int success = in.readInt();
                         String message = in.readUTF();
                         System.out.println(message);
@@ -123,6 +126,7 @@ public class ClientInterface {
                     case "multiPut" -> {
                         System.out.print("How many values you want to insert: ");
                         int N = scanner.nextInt();
+                        scanner.nextLine(); // Limpa o buffer do Scanner após nextInt()
                         HashMap<String, byte[]> pairs = new HashMap<>();
 
                         for (int i = 0; i < N; i++) {
@@ -135,6 +139,7 @@ public class ClientInterface {
                         }
                         client.multiPut(pairs);
                     }
+
                     case "get" -> {
                         System.out.print("Key: ");
                         String getKey = getNonEmptyInput(scanner, "Key cannot be empty. Please enter a key: ");
@@ -147,6 +152,7 @@ public class ClientInterface {
                     case "multiGet" -> {
                         System.out.print("How many keys you want to retrieve: ");
                         int N = scanner.nextInt();
+                        scanner.nextLine(); // Limpa o buffer do Scanner após nextInt()
                         ArrayList<String> keys = new ArrayList<>();
 
                         for (int i = 0; i < N; i++) {

@@ -72,7 +72,7 @@ public class Server implements Serializable {
      * stopped.
      *
      * @param args Command-line arguments. The first argument should be the
-     * number of semaphore permits.
+     *             number of semaphore permits.
      */
     public static void main(String[] args) {
         if (args.length < 1) {
@@ -150,7 +150,8 @@ public class Server implements Serializable {
      */
     private void handleClient(Socket clientSocket) {
         try (
-                DataInputStream in = new DataInputStream(clientSocket.getInputStream()); DataOutputStream out = new DataOutputStream(clientSocket.getOutputStream())) {
+                DataInputStream in = new DataInputStream(clientSocket.getInputStream());
+                DataOutputStream out = new DataOutputStream(clientSocket.getOutputStream())) {
 
             User user = new User();
             int flag = 0;
@@ -225,9 +226,15 @@ public class Server implements Serializable {
                         in.read(value);
 
                         lock.lock();
-                        try{
-                            dataStorage.put(key, value);
-                        } finally{
+                        try {
+                            if (!dataStorage.containsKey(key)) {
+                                dataStorage.put(key, value);
+                            } else {
+                                System.out.println("There is already a key with that value\n");
+                                out.writeUTF("There is already a key with that name!\n");
+                                break;
+                            }
+                        } finally {
                             condition.signalAll();
                             lock.unlock();
                         }
@@ -249,8 +256,14 @@ public class Server implements Serializable {
                                     "Info successfully stored -> Key: " + key + " | Value: " + new String(value)
                                             + "\n");
                             lock.lock();
-                            try{
-                                dataStorage.put(key, value);
+                            try {
+                                if (!dataStorage.containsKey(key)) {
+                                    dataStorage.put(key, value);
+                                } else {
+                                    System.out.println("There is already a key with that name, notifiyng client\n");
+                                    out.writeUTF("There is already a key with that name!\n");
+                                    break;
+                                }
                             } finally {
                                 condition.signalAll();
                                 lock.unlock();
@@ -264,13 +277,13 @@ public class Server implements Serializable {
                         String key = in.readUTF();
                         byte[] taskResponse = null;
                         lock.lock();
-                        try{
+                        try {
                             taskResponse = dataStorage.get(key);
                         } finally {
                             lock.unlock();
                         }
                         if (taskResponse != null) {
-                            System.out.println("Info stored : " + taskResponse);
+                            System.out.println("Info stored : " + new String(taskResponse));
                             out.writeInt(taskResponse.length);
                             out.write(taskResponse);
                             out.flush();
@@ -289,7 +302,7 @@ public class Server implements Serializable {
                             byte[] value = dataStorage.get(key);
                             if (value != null) {
                                 lock.lock();
-                                try{
+                                try {
                                     pairs.put(key, value);
                                 } finally {
                                     lock.lock();
@@ -359,7 +372,7 @@ public class Server implements Serializable {
 
     private boolean isConditionSatisfied(String keyCond, byte[] valueCond) {
         byte[] value = dataStorage.get(keyCond);
-        if(value == null){
+        if (value == null) {
             return false;
         }
         return java.util.Arrays.equals(value, valueCond);
@@ -400,8 +413,8 @@ public class Server implements Serializable {
      * Closes the given client connection by closing its input/output streams
      * and the socket itself.
      *
-     * @param in The input stream for the client.
-     * @param out The output stream for the client.
+     * @param in     The input stream for the client.
+     * @param out    The output stream for the client.
      * @param socket The socket representing the client connection.
      */
     private void closeConnection(DataInputStream in, DataOutputStream out, Socket socket) {
@@ -419,7 +432,8 @@ public class Server implements Serializable {
      * data storage, to files.
      */
     private void saveState() {
-        try (ObjectOutputStream userOut = new ObjectOutputStream(new FileOutputStream(USER_DB_FILE)); ObjectOutputStream dataOut = new ObjectOutputStream(new FileOutputStream(DATA_STORAGE_FILE))) {
+        try (ObjectOutputStream userOut = new ObjectOutputStream(new FileOutputStream(USER_DB_FILE));
+                ObjectOutputStream dataOut = new ObjectOutputStream(new FileOutputStream(DATA_STORAGE_FILE))) {
 
             userOut.writeObject(userDatabase);
             dataOut.writeObject(dataStorage);
@@ -433,7 +447,8 @@ public class Server implements Serializable {
      * storage, from files.
      */
     private void loadState() {
-        try (ObjectInputStream userIn = new ObjectInputStream(new FileInputStream(USER_DB_FILE)); ObjectInputStream dataIn = new ObjectInputStream(new FileInputStream(DATA_STORAGE_FILE))) {
+        try (ObjectInputStream userIn = new ObjectInputStream(new FileInputStream(USER_DB_FILE));
+                ObjectInputStream dataIn = new ObjectInputStream(new FileInputStream(DATA_STORAGE_FILE))) {
 
             userDatabase.putAll((Map<String, User>) userIn.readObject());
             dataStorage.putAll((Map<String, byte[]>) dataIn.readObject());
