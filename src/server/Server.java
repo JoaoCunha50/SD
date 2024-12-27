@@ -2,28 +2,78 @@ package server;
 
 import common.AuthRequest;
 import common.User;
-
 import java.io.*;
 import java.net.*;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.List;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.*;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
+/**
+ * The <code>Server</code> class is responsible for handling client connections,
+ * authentication, and data storage. It uses a semaphore to control the number
+ * of concurrent connections and a thread pool to handle client requests.
+ */
 public class Server implements Serializable {
+
+    /**
+     * The port number for the server to listen on.
+     */
     private static final int PORT = 12345;
+
+    /**
+     * Semaphore to limit the number of concurrent client connections.
+     */
     private static Semaphore semaforo;
+
+    /**
+     * The map that stores user information, with the username as the key.
+     */
     private final ConcurrentHashMap<String, User> userDatabase = new ConcurrentHashMap<>();
+
+    /**
+     * The map that stores data associated with keys, using a String key and
+     * byte array value.
+     */
     private final ConcurrentHashMap<String, byte[]> dataStorage = new ConcurrentHashMap<>();
+
+    /**
+     * List to keep track of active client connections.
+     */
     private final List<Socket> clientConnections = new ArrayList<>();
+
+    /**
+     * Thread pool to handle client requests concurrently.
+     */
     private final ExecutorService threadPool = Executors.newCachedThreadPool();
 
+    private final Lock lock = new ReentrantLock();
+    private final Condition condition = lock.newCondition();
+
+    /**
+     * File paths for storing the user database and data storage.
+     */
     private static final String USER_DB_FILE = "Data/userDatabase.obj";
     private static final String DATA_STORAGE_FILE = "Data/dataStorage.obj";
 
-    private boolean running = true; // Controle do loop do servidor
+    /**
+     * Flag to control the server's running state.
+     */
+    private boolean running = true;
 
+    /**
+     * The main method that initializes the server, sets up the semaphore, and
+     * starts listening for client connections. It also adds a shutdown hook to
+     * gracefully close connections and save the server state when the server is
+     * stopped.
+     *
+     * @param args Command-line arguments. The first argument should be the
+     * number of semaphore permits.
+     */
     public static void main(String[] args) {
         if (args.length < 1) {
             System.err.println("Erro: É necessário fornecer o número de permissões do semáforo como argumento.");
@@ -42,7 +92,7 @@ public class Server implements Serializable {
 
         server.loadState();
 
-        // Adiciona um hook para salvar o estado e fechar conexões
+        // Add shutdown hook to save state and close connections gracefully
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             System.out.println("\nGracefully shutting down the server...");
             server.gracefulShutdown();
@@ -51,26 +101,33 @@ public class Server implements Serializable {
         server.start();
     }
 
+    /**
+     * Starts the server, listening for client connections and spawning a new
+     * thread for each connection. Each thread will handle a client request
+     * while the semaphore ensures that only a specified number of clients are
+     * processed concurrently.
+     */
     public void start() {
         try (ServerSocket serverSocket = new ServerSocket(PORT)) {
             System.out.println("Server is running on port " + PORT);
 
             while (running) {
                 try {
+                    // Accept a new client connection
                     Socket clientSocket = serverSocket.accept();
-
                     clientConnections.add(clientSocket);
 
-                    threadPool.submit(() -> { // Submete a tarefa ao pool de threads
+                    // Submit a new task to handle the client in a separate thread
+                    threadPool.submit(() -> {
                         try {
-                            semaforo.acquire();
+                            semaforo.acquire(); // Acquire semaphore permit for client
                             handleClient(clientSocket);
                         } catch (InterruptedException ie) {
                             System.out.println("Erro no semáforo: " + ie.getMessage());
-                            Thread.currentThread().interrupt(); // Reinterrompe a thread
+                            Thread.currentThread().interrupt(); // Re-interrupt the thread
                         } finally {
-                            semaforo.release();
-                            clientConnections.remove(clientSocket); // Remove a conexão ao encerrar
+                            semaforo.release(); // Release the semaphore permit
+                            clientConnections.remove(clientSocket); // Remove the client connection
                         }
                     });
                 } catch (SocketException e) {
@@ -84,43 +141,44 @@ public class Server implements Serializable {
         }
     }
 
+    /**
+     * Handles a client connection by reading authentication requests,
+     * processing data storage operations, and responding with the appropriate
+     * messages based on the task.
+     *
+     * @param clientSocket The socket representing the client connection.
+     */
     private void handleClient(Socket clientSocket) {
         try (
-                DataInputStream in = new DataInputStream(clientSocket.getInputStream());
-                DataOutputStream out = new DataOutputStream(clientSocket.getOutputStream())) {
+                DataInputStream in = new DataInputStream(clientSocket.getInputStream()); DataOutputStream out = new DataOutputStream(clientSocket.getOutputStream())) {
 
             User user = new User();
-
             int flag = 0;
             while (flag == 0) {
-                // Lê o tamanho dos bytes que o cliente vai enviar
+                // Read the length of the incoming request and the request data itself
                 int length = in.readInt();
-
-                // Lê os bytes enviados pelo cliente
                 byte[] requestBytes = new byte[length];
                 in.read(requestBytes);
 
-                // Converte os bytes para um objeto AuthRequest
+                // Deserialize the request data into an AuthRequest object
                 AuthRequest authRequest = new AuthRequest();
                 authRequest.readRequestBytes(requestBytes);
                 user = new User(authRequest.getUsername(), authRequest.getPassword());
 
+                // Authenticate the user based on the request type (REGISTER or LOGIN)
                 int requestType = authRequest.getType();
-
                 switch (requestType) {
                     case AuthRequest.REGISTER -> {
+                        // Handle user registration
                         int success = user.registerAuth(userDatabase);
                         if (success == 1) {
                             System.out.println("User added with Username: " + user.getUsername());
-
                             out.writeUTF("User registered successfully!");
                             out.flush();
                             System.out.println("Sent notification to client");
                             System.out.println();
-
                             flag = 1;
                         } else {
-
                             out.writeUTF("There is already a user with such credentials.");
                             out.flush();
                             System.out.println("Sent notification to client");
@@ -128,23 +186,20 @@ public class Server implements Serializable {
                         }
                     }
                     case AuthRequest.LOGIN -> {
+                        // Handle user login
                         int success = user.loginAuth(userDatabase);
                         if (success == 1) {
-
                             out.writeUTF("User logged in successfully!");
                             out.flush();
                             System.out.println("Sent notification to client");
                             System.out.println();
-
                             flag = 1;
                         } else if (success == -1) {
-
                             out.writeUTF("Password is invalid!");
                             out.flush();
                             System.out.println("Sent notification to client");
                             System.out.println();
                         } else {
-
                             out.writeUTF("There is no user with such credentials.");
                             out.flush();
                             System.out.println("Sent notification to client");
@@ -152,49 +207,122 @@ public class Server implements Serializable {
                         }
                     }
                 }
-
             }
 
+            // Continue to process data storage tasks (put, get, multiPut, multiGet)
             while (true) {
-                try {
-                    String taskType = in.readUTF();
+                String taskType = in.readUTF();
+                switch (taskType) {
+                    case "put" -> {
+                        String key = in.readUTF();
+                        int length = in.readInt();
+                        byte[] value = new byte[length];
+                        in.read(value);
 
-                    switch (taskType) {
-                        case "put" -> {
+                        lock.lock();
+                        try{
+                            dataStorage.put(key, value);
+                        } finally{
+                            condition.signalAll();
+                            lock.unlock();
+                        }
+                        System.out.println(
+                                "Info successfully stored -> Key: " + key + " | Value: " + new String(value));
+                        out.writeUTF("Info successfully stored!");
+                        out.flush();
+                    }
+                    case "multiPut" -> {
+                        int N = in.readInt();
+
+                        for (int i = 0; i < N; i++) {
                             String key = in.readUTF();
                             int length = in.readInt();
                             byte[] value = new byte[length];
                             in.read(value);
 
-                            dataStorage.put(key, value);
                             System.out.println(
-                                    "Info successfully stored -> Key: " + key + " | Value: " + new String(value));
-                            out.writeUTF("Info successfully stored!");
-                            out.flush();
-                        }
-                        case "multiPut" -> {
-                            int N = in.readInt();
-
-                            for (int i = 0; i < N; i++) {
-                                String key = in.readUTF();
-                                int length = in.readInt();
-                                byte[] value = new byte[length];
-                                in.read(value);
-
-                                System.out.println(
-                                        "Info successfully stored -> Key: " + key + " | Value: " + new String(value)
-                                                + "\n");
+                                    "Info successfully stored -> Key: " + key + " | Value: " + new String(value)
+                                            + "\n");
+                            lock.lock();
+                            try{
                                 dataStorage.put(key, value);
+                            } finally {
+                                condition.signalAll();
+                                lock.unlock();
                             }
+                        }
 
-                            out.writeUTF("Info successfully stored!");
+                        out.writeUTF("Info successfully stored!");
+                        out.flush();
+                    }
+                    case "get" -> {
+                        String key = in.readUTF();
+                        byte[] taskResponse = null;
+                        lock.lock();
+                        try{
+                            taskResponse = dataStorage.get(key);
+                        } finally {
+                            lock.unlock();
+                        }
+                        if (taskResponse != null) {
+                            System.out.println("Info stored : " + taskResponse);
+                            out.writeInt(taskResponse.length);
+                            out.write(taskResponse);
+                            out.flush();
+                        } else {
+                            System.out.println("No info found, signal the client");
+                            out.writeUTF(
+                                    "There is no information associated with the requested key ( " + key + " )");
                             out.flush();
                         }
-                        case "get" -> {
+                    }
+                    case "multiGet" -> {
+                        HashMap<String, byte[]> pairs = new HashMap<>();
+                        int N = in.readInt();
+                        for (int i = 0; i < N; i++) {
                             String key = in.readUTF();
+                            byte[] value = dataStorage.get(key);
+                            if (value != null) {
+                                lock.lock();
+                                try{
+                                    pairs.put(key, value);
+                                } finally {
+                                    lock.lock();
+                                }
+                            } else {
+                                System.out.println("There is no value associated with '" + key + "'\n");
+                            }
+                        }
+
+                        if (pairs.size() > 0) {
+                            out.writeInt(pairs.size());
+                            for (Map.Entry<String, byte[]> entry : pairs.entrySet()) {
+                                out.writeUTF(entry.getKey());
+                                out.writeInt(entry.getValue().length);
+                                out.write(entry.getValue());
+                                out.flush();
+                            }
+                        } else {
+                            System.out.println("No info found, signal the client");
+                            out.writeUTF("There is no information associated with the requested keys");
+                            out.flush();
+                        }
+                    }
+                    case "getWhen" -> {
+                        String key = in.readUTF();
+                        String keyCond = in.readUTF();
+                        int length = in.readInt();
+                        byte[] valueCond = new byte[length];
+                        in.read(valueCond);
+
+                        lock.lock();
+                        try {
+                            while (!isConditionSatisfied(keyCond, valueCond)) {
+                                condition.await();
+                            }
                             byte[] taskResponse = dataStorage.get(key);
                             if (taskResponse != null) {
-                                System.out.println("Info stored : " + taskResponse);
+                                System.out.println("Info stored : " + new String(taskResponse));
                                 out.writeInt(taskResponse.length);
                                 out.write(taskResponse);
                                 out.flush();
@@ -204,44 +332,19 @@ public class Server implements Serializable {
                                         "There is no information associated with the requested key ( " + key + " )");
                                 out.flush();
                             }
-                        }
-                        case "multiGet" -> {
-                            HashMap<String, byte[]> pairs = new HashMap<>();
-
-                            int N = in.readInt();
-                            for (int i = 0; i < N; i++) {
-                                String key = in.readUTF();
-                                byte[] value = dataStorage.get(key);
-                                if (value != null) {
-                                    pairs.put(key, value);
-                                } else
-                                    System.out.println("There is no value associated with '" + key + "'\n");
-                            }
-
-                            if (pairs.size() > 0) {
-                                out.writeInt(pairs.size());
-
-                                for (Map.Entry<String, byte[]> entry : pairs.entrySet()) {
-                                    out.writeUTF(entry.getKey());
-                                    out.writeInt(entry.getValue().length);
-                                    out.write(entry.getValue());
-                                    out.flush();
-                                }
-                            } else {
-                                System.out.println("No info found, signal the client");
-                                out.writeUTF("There is no information associated with the requested keys");
-                                out.flush();
-                            }
-                        }
-                        case "exit" -> {
-                            System.out.println("Client with username " + user.getUsername() + " disconnected.");
-                            closeConnection(in, out, clientSocket);
-                            return;
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            out.writeInt(0);
+                        } finally {
+                            lock.unlock();
                         }
                     }
-                } catch (EOFException e) {
-                    System.out.println("Client with username " + user.getUsername() + " disconnected.");
-                    break;
+                    case "exit" -> {
+                        System.out.println("Client with username " + user.getUsername() + " disconnected.");
+                        closeConnection(in, out, clientSocket);
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
                 }
             }
         } catch (IOException e) {
@@ -249,10 +352,20 @@ public class Server implements Serializable {
         }
     }
 
+    private boolean isConditionSatisfied(String keyCond, byte[] valueCond) {
+        byte[] value = dataStorage.get(keyCond);
+        if(value == null){
+            return false;
+        }
+        return java.util.Arrays.equals(value, valueCond);
+    }
+
+    /**
+     * Gracefully shuts down the server, saving the state, shutting down the
+     * thread pool, and closing all active client connections.
+     */
     private void gracefulShutdown() {
-
         saveState();
-
         threadPool.shutdown();
         try {
             if (!threadPool.awaitTermination(10, TimeUnit.SECONDS)) {
@@ -275,10 +388,18 @@ public class Server implements Serializable {
         }
 
         System.out.println("All client connections and threads closed. Server shutdown completed.");
-        running = false; // Finaliza o loop principal do servidor
+        running = false;
     }
 
-    public void closeConnection(DataInputStream in, DataOutputStream out, Socket socket) {
+    /**
+     * Closes the given client connection by closing its input/output streams
+     * and the socket itself.
+     *
+     * @param in The input stream for the client.
+     * @param out The output stream for the client.
+     * @param socket The socket representing the client connection.
+     */
+    private void closeConnection(DataInputStream in, DataOutputStream out, Socket socket) {
         try {
             in.close();
             out.close();
@@ -288,9 +409,12 @@ public class Server implements Serializable {
         }
     }
 
+    /**
+     * Saves the current state of the server, including the user database and
+     * data storage, to files.
+     */
     private void saveState() {
-        try (ObjectOutputStream userOut = new ObjectOutputStream(new FileOutputStream(USER_DB_FILE));
-                ObjectOutputStream dataOut = new ObjectOutputStream(new FileOutputStream(DATA_STORAGE_FILE))) {
+        try (ObjectOutputStream userOut = new ObjectOutputStream(new FileOutputStream(USER_DB_FILE)); ObjectOutputStream dataOut = new ObjectOutputStream(new FileOutputStream(DATA_STORAGE_FILE))) {
 
             userOut.writeObject(userDatabase);
             dataOut.writeObject(dataStorage);
@@ -299,33 +423,15 @@ public class Server implements Serializable {
         }
     }
 
+    /**
+     * Loads the saved state of the server, including the user database and data
+     * storage, from files.
+     */
     private void loadState() {
-        try (ObjectInputStream userIn = new ObjectInputStream(new FileInputStream(USER_DB_FILE));
-                ObjectInputStream dataIn = new ObjectInputStream(new FileInputStream(DATA_STORAGE_FILE))) {
+        try (ObjectInputStream userIn = new ObjectInputStream(new FileInputStream(USER_DB_FILE)); ObjectInputStream dataIn = new ObjectInputStream(new FileInputStream(DATA_STORAGE_FILE))) {
 
-            Object loadedUserObject = userIn.readObject();
-            Object loadedDataObject = dataIn.readObject();
-
-            if (loadedUserObject instanceof ConcurrentHashMap<?, ?> usersMap) {
-                usersMap.forEach((key, value) -> {
-                    if (key instanceof String && value instanceof User) {
-                        userDatabase.put((String) key, (User) value);
-                    }
-                });
-            } else {
-                System.err.println("Error loading userDatabase: Incompatible type.");
-            }
-
-            if (loadedDataObject instanceof ConcurrentHashMap<?, ?> dataMap) {
-                dataMap.forEach((key, value) -> {
-                    if (key instanceof String && value instanceof byte[]) {
-                        dataStorage.put((String) key, (byte[]) value);
-                    }
-                });
-            } else {
-                System.err.println("Error loading dataStorage: Incompatible type.");
-            }
-
+            userDatabase.putAll((Map<String, User>) userIn.readObject());
+            dataStorage.putAll((Map<String, byte[]>) dataIn.readObject());
             System.out.println("State successfully loaded.");
         } catch (FileNotFoundException e) {
             System.out.println("No previous state found. Starting with empty maps");
