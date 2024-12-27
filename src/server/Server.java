@@ -1,33 +1,36 @@
 package server;
 
 import common.AuthRequest;
-import common.TasksRequest;
 import common.User;
+
 import java.io.*;
 import java.net.*;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Semaphore;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.concurrent.*;
 
 public class Server implements Serializable {
     private static final int PORT = 12345;
     private static Semaphore semaforo;
     private final ConcurrentHashMap<String, User> userDatabase = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, String> dataStorage = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, byte[]> dataStorage = new ConcurrentHashMap<>();
+    private final List<Socket> clientConnections = new ArrayList<>();
+    private final ExecutorService threadPool = Executors.newCachedThreadPool();
 
     private static final String USER_DB_FILE = "Data/userDatabase.obj";
     private static final String DATA_STORAGE_FILE = "Data/dataStorage.obj";
 
+    private boolean running = true; // Controle do loop do servidor
+
     public static void main(String[] args) {
-        // Verifica se o argumento foi fornecido
         if (args.length < 1) {
             System.err.println("Erro: É necessário fornecer o número de permissões do semáforo como argumento.");
             System.exit(1);
         }
 
         try {
-            // Lê o número de permissões do semáforo do argumento
             int permits = Integer.parseInt(args[0]);
             semaforo = new Semaphore(permits);
         } catch (NumberFormatException e) {
@@ -39,10 +42,10 @@ public class Server implements Serializable {
 
         server.loadState();
 
+        // Adiciona um hook para salvar o estado e fechar conexões
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            System.out.println("Closing Server. Saving current state...");
-            server.saveState();
-            System.out.println("State successfully saved.");
+            System.out.println("\nGracefully shutting down the server...");
+            server.gracefulShutdown();
         }));
 
         server.start();
@@ -52,22 +55,32 @@ public class Server implements Serializable {
         try (ServerSocket serverSocket = new ServerSocket(PORT)) {
             System.out.println("Server is running on port " + PORT);
 
-            while (true) {
-                Socket clientSocket = serverSocket.accept();
+            while (running) {
+                try {
+                    Socket clientSocket = serverSocket.accept();
 
-                new Thread(() -> {
-                    try {
-                        semaforo.acquire();
-                        handleClient(clientSocket);
-                    } catch (InterruptedException ie) {
-                        System.out.println("Erro no semáforo: " + ie.getMessage());
-                    } finally {
-                        semaforo.release();
+                    clientConnections.add(clientSocket);
+
+                    threadPool.submit(() -> { // Submete a tarefa ao pool de threads
+                        try {
+                            semaforo.acquire();
+                            handleClient(clientSocket);
+                        } catch (InterruptedException ie) {
+                            System.out.println("Erro no semáforo: " + ie.getMessage());
+                            Thread.currentThread().interrupt(); // Reinterrompe a thread
+                        } finally {
+                            semaforo.release();
+                            clientConnections.remove(clientSocket); // Remove a conexão ao encerrar
+                        }
+                    });
+                } catch (SocketException e) {
+                    if (running) {
+                        System.out.println("Erro no servidor: " + e.getMessage());
                     }
-                }).start();
+                }
             }
         } catch (IOException e) {
-            System.out.println(e.getMessage());
+            System.out.println("Erro ao iniciar o servidor: " + e.getMessage());
         }
     }
 
@@ -108,7 +121,7 @@ public class Server implements Serializable {
                             flag = 1;
                         } else {
 
-                            out.writeUTF("There is already a User with such credentials.");
+                            out.writeUTF("There is already a user with such credentials.");
                             out.flush();
                             System.out.println("Sent notification to client");
                             System.out.println();
@@ -122,7 +135,7 @@ public class Server implements Serializable {
                             out.flush();
                             System.out.println("Sent notification to client");
                             System.out.println();
-                            
+
                             flag = 1;
                         } else if (success == -1) {
 
@@ -132,7 +145,7 @@ public class Server implements Serializable {
                             System.out.println();
                         } else {
 
-                            out.writeUTF("There is no User with such credentials.");
+                            out.writeUTF("There is no user with such credentials.");
                             out.flush();
                             System.out.println("Sent notification to client");
                             System.out.println();
@@ -144,76 +157,86 @@ public class Server implements Serializable {
 
             while (true) {
                 try {
-                    int taskLength = in.readInt();
+                    String taskType = in.readUTF();
 
-                    if (taskLength > 0) {
-                        byte[] taskBytes = new byte[taskLength];
-                        in.read(taskBytes);
+                    switch (taskType) {
+                        case "put" -> {
+                            String key = in.readUTF();
+                            int length = in.readInt();
+                            byte[] value = new byte[length];
+                            in.read(value);
 
-                        TasksRequest task = new TasksRequest();
-                        task.readTaskBytes(taskBytes);
-                        int type = task.getType();
-                        switch (type) {
-                            case TasksRequest.PUT -> {
-                                dataStorage.put(task.getKey(), task.getValue());
-                                System.out.println("Info successfully stored : " + task.toString());
-                                out.writeUTF("Info successfully stored!");
+                            dataStorage.put(key, value);
+                            System.out.println(
+                                    "Info successfully stored -> Key: " + key + " | Value: " + new String(value));
+                            out.writeUTF("Info successfully stored!");
+                            out.flush();
+                        }
+                        case "multiPut" -> {
+                            int N = in.readInt();
+
+                            for (int i = 0; i < N; i++) {
+                                String key = in.readUTF();
+                                int length = in.readInt();
+                                byte[] value = new byte[length];
+                                in.read(value);
+
+                                System.out.println(
+                                        "Info successfully stored -> Key: " + key + " | Value: " + new String(value)
+                                                + "\n");
+                                dataStorage.put(key, value);
+                            }
+
+                            out.writeUTF("Info successfully stored!");
+                            out.flush();
+                        }
+                        case "get" -> {
+                            String key = in.readUTF();
+                            byte[] taskResponse = dataStorage.get(key);
+                            if (taskResponse != null) {
+                                System.out.println("Info stored : " + taskResponse);
+                                out.writeInt(taskResponse.length);
+                                out.write(taskResponse);
+                                out.flush();
+                            } else {
+                                System.out.println("No info found, signal the client");
+                                out.writeUTF(
+                                        "There is no information associated with the requested key ( " + key + " )");
                                 out.flush();
                             }
-                            case TasksRequest.MULTIPUT -> {
-                                for (Map.Entry<String, String> entry : task.getPairs().entrySet()) {
-                                    dataStorage.put(entry.getKey(), entry.getValue());
+                        }
+                        case "multiGet" -> {
+                            HashMap<String, byte[]> pairs = new HashMap<>();
+
+                            int N = in.readInt();
+                            for (int i = 0; i < N; i++) {
+                                String key = in.readUTF();
+                                byte[] value = dataStorage.get(key);
+                                if (value != null) {
+                                    pairs.put(key, value);
+                                } else
+                                    System.out.println("There is no value associated with '" + key + "'\n");
+                            }
+
+                            if (pairs.size() > 0) {
+                                out.writeInt(pairs.size());
+
+                                for (Map.Entry<String, byte[]> entry : pairs.entrySet()) {
+                                    out.writeUTF(entry.getKey());
+                                    out.writeInt(entry.getValue().length);
+                                    out.write(entry.getValue());
+                                    out.flush();
                                 }
-                                System.out.println("Info successfully stored : " + task.multiPutToString());
-                                out.writeUTF("Info successfully stored!");
+                            } else {
+                                System.out.println("No info found, signal the client");
+                                out.writeUTF("There is no information associated with the requested keys");
                                 out.flush();
                             }
-                            case TasksRequest.GET -> {
-                                String taskResponse = dataStorage.get(task.getKey());
-                                if (taskResponse != null) {
-                                    System.out.println("Info stored : " + taskResponse);
-                                    out.writeInt(taskResponse.getBytes().length);
-                                    out.write(taskResponse.getBytes());
-                                    out.flush();
-                                } else {
-                                    System.out.println("No info found, signal the client");
-                                    out.writeInt("There is no information associated with the requested key"
-                                            .getBytes().length);
-                                    out.write("There is no information associated with the requested key".getBytes());
-                                    out.flush();
-                                }
-                            }
-                            case TasksRequest.MULTIGET -> {
-                                HashMap<String,String> pairs = new HashMap<>();
-                                StringBuilder sb = new StringBuilder();
-                                for (int i = 0; i < task.getN(); i++){
-                                    String key = task.getKeys().get(i);
-                                    pairs.put(key, dataStorage.get(key));
-                                }
-                                for (Map.Entry<String, String> entry : pairs.entrySet()) {
-                                    sb.append("Key=").append(entry.getKey()).append("  Value=").append(entry.getValue()).append("\n\n");
-                                }
-                                String taskResponse = sb.toString();
-                                if (taskResponse != null) {
-                                    System.out.println("Info stored : " + taskResponse);
-                                    out.writeInt(taskResponse.getBytes().length);
-                                    out.write(taskResponse.getBytes());
-                                    out.flush();
-                                } else {
-                                    System.out.println("No info found, signal the client");
-                                    out.writeInt("There is no information associated with the requested keys"
-                                            .getBytes().length);
-                                    out.write("There is no information associated with the requested keys".getBytes());
-                                    out.flush();
-                                }
-                            }
-                            case TasksRequest.EXIT -> {
-                                System.out.println("Client with username " + user.getUsername() + " disconnected.");
-                                in.close();
-                                out.close();
-                                clientSocket.close();
-                                return;
-                            }
+                        }
+                        case "exit" -> {
+                            System.out.println("Client with username " + user.getUsername() + " disconnected.");
+                            closeConnection(in, out, clientSocket);
+                            return;
                         }
                     }
                 } catch (EOFException e) {
@@ -223,6 +246,45 @@ public class Server implements Serializable {
             }
         } catch (IOException e) {
             System.out.println("Error handling client: " + e.getMessage());
+        }
+    }
+
+    private void gracefulShutdown() {
+
+        saveState();
+
+        threadPool.shutdown();
+        try {
+            if (!threadPool.awaitTermination(10, TimeUnit.SECONDS)) {
+                System.out.println("Forcing shutdown of remaining threads...");
+                threadPool.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            threadPool.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+
+        for (Socket socket : clientConnections) {
+            try {
+                socket.getInputStream().close();
+                socket.getOutputStream().close();
+                socket.close();
+            } catch (IOException e) {
+                System.err.println("Error closing client connection: " + e.getMessage());
+            }
+        }
+
+        System.out.println("All client connections and threads closed. Server shutdown completed.");
+        running = false; // Finaliza o loop principal do servidor
+    }
+
+    public void closeConnection(DataInputStream in, DataOutputStream out, Socket socket) {
+        try {
+            in.close();
+            out.close();
+            socket.close();
+        } catch (IOException e) {
+            System.out.println(e.getMessage());
         }
     }
 
@@ -256,8 +318,8 @@ public class Server implements Serializable {
 
             if (loadedDataObject instanceof ConcurrentHashMap<?, ?> dataMap) {
                 dataMap.forEach((key, value) -> {
-                    if (key instanceof String && value instanceof String) {
-                        dataStorage.put((String) key, (String) value);
+                    if (key instanceof String && value instanceof byte[]) {
+                        dataStorage.put((String) key, (byte[]) value);
                     }
                 });
             } else {

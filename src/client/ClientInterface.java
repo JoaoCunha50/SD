@@ -1,10 +1,10 @@
 package client;
 
 import common.AuthRequest;
-import common.TasksRequest;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Scanner;
 
 public class ClientInterface {
@@ -13,8 +13,8 @@ public class ClientInterface {
         Client client = new Client();
 
         try (
-                DataInputStream in = new DataInputStream(client.getSocket().getInputStream());
-                DataOutputStream out = new DataOutputStream(client.getSocket().getOutputStream());
+                DataInputStream in = client.getInputStream();
+                DataOutputStream out = client.getOutputStream();
                 Scanner scanner = new Scanner(System.in)) {
 
             int flag = 0;
@@ -23,14 +23,16 @@ public class ClientInterface {
             // Authentication loop
             while (flag == 0) {
                 System.out.print("Enter command (register/login): ");
-                command = scanner.nextLine();
+                command = getNonEmptyInput(scanner, "Command cannot be empty. Enter 'register' or 'login': ");
                 flag = switch (command) {
                     case "register" -> {
                         System.out.print("Username: ");
-                        String regUsername = scanner.nextLine();
+                        String regUsername = getNonEmptyInput(scanner,
+                                "Username cannot be empty.\nPlease enter a username: ");
                         System.out.print("Password: ");
-                        String regPassword = scanner.nextLine();
-                        
+                        String regPassword = getNonEmptyInput(scanner,
+                                "Password cannot be empty.\nPlease enter a password: ");
+
                         AuthRequest registerRequest = new AuthRequest(AuthRequest.REGISTER, regUsername, regPassword);
                         byte[] regRequestBytes = registerRequest.getRequestBytes();
                         out.writeInt(regRequestBytes.length);
@@ -44,9 +46,11 @@ public class ClientInterface {
                     }
                     case "login" -> {
                         System.out.print("Username: ");
-                        String loginUsername = scanner.nextLine();
+                        String loginUsername = getNonEmptyInput(scanner,
+                                "Username cannot be empty. Please enter a username: ");
                         System.out.print("Password: ");
-                        String loginPassword = scanner.nextLine();
+                        String loginPassword = getNonEmptyInput(scanner,
+                                "Password cannot be empty. Please enter a password: ");
 
                         AuthRequest loginRequest = new AuthRequest(AuthRequest.LOGIN, loginUsername, loginPassword);
                         byte[] loginRequestBytes = loginRequest.getRequestBytes();
@@ -70,91 +74,84 @@ public class ClientInterface {
             while (true) {
                 System.out.print("Enter command (put/get/multiPut/multiGet/exit): ");
                 command = scanner.nextLine();
-                byte[] taskBytes;
+
                 switch (command) {
                     case "put" -> {
                         System.out.print("Key: ");
-                        String putKey = scanner.nextLine();
+                        String putKey = getNonEmptyInput(scanner, "Key cannot be empty. Please enter a key: ");
                         System.out.print("Value: ");
-                        String value = scanner.nextLine();
-                        TasksRequest task = new TasksRequest(TasksRequest.PUT, putKey, value);
-                        taskBytes = task.getTaskBytes();
-                        out.writeInt(taskBytes.length);
-                        out.write(taskBytes);
-                        System.out.println("Task sent.");
-                        String response = in.readUTF();
-                        System.out.println("Response: " + response);
+                        String value = getNonEmptyInput(scanner, "Value cannot be empty. Please enter a value: ");
+                        byte[] valueBytes = value.getBytes();
+                        client.put(putKey, valueBytes);
                     }
                     case "multiPut" -> {
                         System.out.print("How many values you want to insert: ");
-                        String n = scanner.nextLine();
-                        int N = Integer.parseInt(n);
-                        HashMap<String, String> pairs = new HashMap<>();
+                        int N = scanner.nextInt();
+                        HashMap<String, byte[]> pairs = new HashMap<>();
 
-                        for(int i = 0; i<N; i++){
+                        for (int i = 0; i < N; i++) {
                             System.out.print("Key: ");
-                            String putKey = scanner.nextLine();
+                            String putKey = getNonEmptyInput(scanner, "Key cannot be empty. Please enter a key: ");
                             System.out.print("Value: ");
-                            String value = scanner.nextLine();
-                            pairs.put(putKey, value);
+                            String value = getNonEmptyInput(scanner, "Value cannot be empty. Please enter a value: ");
+                            byte[] valueBytes = value.getBytes();
+                            pairs.put(putKey, valueBytes);
                         }
-                        TasksRequest task = new TasksRequest(TasksRequest.MULTIPUT, null, null, N, pairs, null);
-                        taskBytes = task.getTaskBytes();
-                        out.writeInt(taskBytes.length);
-                        out.write(taskBytes);
-                        System.out.println("Task sent.");
-                        String response = in.readUTF();
-                        System.out.println("Response: " + response);
+                        client.multiPut(pairs);
                     }
                     case "get" -> {
                         System.out.print("Key: ");
-                        String getKey = scanner.nextLine();
-                        TasksRequest task = new TasksRequest(TasksRequest.GET, getKey, null);
-                        taskBytes = task.getTaskBytes();
-                        out.writeInt(taskBytes.length);
-                        out.write(taskBytes);
-                        System.out.println("Task sent.");
-                        int length = in.readInt();
-                        byte[] info = new byte[length];
-                        in.read(info);
-                        System.out.println("Response: " + new String(info));
+                        String getKey = getNonEmptyInput(scanner, "Key cannot be empty. Please enter a key: ");
+
+                        byte[] info = client.get(getKey);
+                        if (info != null) {
+                            System.out.println("Response: " + new String(info));
+                        }
                     }
                     case "multiGet" -> {
-                        System.out.print("How many values you want to insert: ");
-                        String n = scanner.nextLine();
-                        int N = Integer.parseInt(n);
+                        System.out.print("How many keys you want to retrieve: ");
+                        int N = scanner.nextInt();
                         ArrayList<String> keys = new ArrayList<>();
 
-                        for(int i = 0; i<N; i++){
+                        for (int i = 0; i < N; i++) {
                             System.out.print("Key: ");
-                            String putKey = scanner.nextLine();
+                            String putKey = getNonEmptyInput(scanner, "Key cannot be empty. Please enter a key: ");
                             keys.add(putKey);
                         }
-                        TasksRequest task = new TasksRequest(TasksRequest.MULTIGET, null, null, N, null, keys);
-                        taskBytes = task.getTaskBytes();
-                        out.writeInt(taskBytes.length);
-                        out.write(taskBytes);
-                        System.out.println("Task sent.");
-                        int length = in.readInt();
-                        byte[] info = new byte[length];
-                        in.read(info);
-                        System.out.println("Response: " + "\n\n" + new String(info));
+
+                        Map<String, byte[]> responses = client.multiGet(keys);
+                        if (responses != null) {
+                            for (Map.Entry<String, byte[]> entry : responses.entrySet()) {
+                                System.out.println(
+                                        "Key: " + entry.getKey() + " | Value: " + new String(entry.getValue()) + "\n");
+                            }
+                        }
                     }
                     case "exit" -> {
-                        TasksRequest task = new TasksRequest(TasksRequest.EXIT, null, null);
-                        taskBytes = task.getTaskBytes();
                         System.out.println("Exiting...");
-                        out.writeInt(taskBytes.length);
-                        out.write(taskBytes); // Envie o comando exit
+                        out.writeUTF("exit"); // Envie o comando exit
                         out.flush();
-                        client.closeConnection(in, out);
+                        client.closeConnection();
                         return;
                     }
-                    default -> System.out.println("Unknown command. Please enter 'put', 'get', or 'exit'.");
+                    default -> System.out
+                            .println("Unknown command. Please enter 'put', 'get', 'multiPut', 'multiGet' or 'exit'.");
                 }
             }
         } catch (IOException e) {
             System.out.println(e.getMessage());
         }
+    }
+
+    // Utility method to get non-empty input from the user
+    private static String getNonEmptyInput(Scanner scanner, String errorMessage) {
+        String input;
+        do {
+            input = scanner.nextLine();
+            if (input.trim().isEmpty()) {
+                System.out.print(errorMessage);
+            }
+        } while (input.trim().isEmpty());
+        return input;
     }
 }
