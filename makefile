@@ -8,7 +8,6 @@ SOURCES = $(SRC_DIR)/client/ClientInterface.java \
           $(SRC_DIR)/client/Client.java \
           $(SRC_DIR)/common/User.java \
           $(SRC_DIR)/common/AuthRequest.java \
-		  $(SRC_DIR)/common/TasksRequest.java \
           $(SRC_DIR)/server/Server.java
 
 CLASSES = $(patsubst $(SRC_DIR)/%.java, $(BIN_DIR)/%.class, $(SOURCES))
