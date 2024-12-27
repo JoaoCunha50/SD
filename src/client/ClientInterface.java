@@ -7,15 +7,39 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Scanner;
 
+/**
+ * The <code>ClientInterface</code> class provides a command-line interface for
+ * interacting with a client. It allows users to authenticate (either by
+ * registering or logging in), and perform actions like storing and retrieving
+ * data from the server, using commands such as <code>put</code>,
+ * <code>get</code>, <code>multiPut</code>, and <code>multiGet</code>. The class
+ * communicates with the server via a socket connection, sending and receiving
+ * data in a serialized format.
+ * <p>
+ * It uses the <code>Client</code> class to manage the socket connection and
+ * handle the data transmission. The user can interact with the client through
+ * text-based commands entered into the console.
+ */
 public class ClientInterface {
 
+    /**
+     * The entry point of the application. This method establishes the
+     * connection to the server, handles user authentication, and provides a
+     * loop for interacting with the server.
+     * <p>
+     * The user can enter commands such as <code>register</code>,
+     * <code>login</code>, <code>put</code>, <code>get</code>,
+     * <code>multiPut</code>, <code>multiGet</code>, or <code>exit</code>.
+     * Depending on the command, appropriate actions are taken, such as sending
+     * requests to the server and displaying responses.
+     *
+     * @param args command-line arguments (NA)
+     */
     public static void main(String[] args) {
         Client client = new Client();
 
         try (
-                DataInputStream in = client.getInputStream();
-                DataOutputStream out = client.getOutputStream();
-                Scanner scanner = new Scanner(System.in)) {
+                DataInputStream in = client.getInputStream(); DataOutputStream out = client.getOutputStream(); Scanner scanner = new Scanner(System.in)) {
 
             int flag = 0;
             String command;
@@ -135,8 +159,9 @@ public class ClientInterface {
                         client.closeConnection();
                         return;
                     }
-                    default -> System.out
-                            .println("Unknown command. Please enter 'put', 'get', 'multiPut', 'multiGet' or 'exit'.");
+                    default ->
+                        System.out
+                                .println("Unknown command. Please enter 'put', 'get', 'multiPut', 'multiGet' or 'exit'.");
                 }
             }
         } catch (IOException e) {
@@ -144,6 +169,14 @@ public class ClientInterface {
         }
     }
 
+    /**
+     * Prompts the user for non-empty input. If the user enters an empty string,
+     * the input is requested again.
+     *
+     * @param scanner the scanner used to read the input
+     * @param errorMessage the message to be displayed if the input is empty
+     * @return the non-empty user input
+     */
     private static String getNonEmptyInput(Scanner scanner, String errorMessage) {
         String input;
         do {
@@ -155,6 +188,15 @@ public class ClientInterface {
         return input;
     }
 
+    /**
+     * Reads the password from the user input. If a console is available, the
+     * password is masked. Otherwise, the password is entered as plain text.
+     *
+     * @param console the system console (may be <code>null</code>)
+     * @param scanner the scanner used if the console is unavailable
+     * @param errorMessage the message to be displayed if the password is empty
+     * @return the user-entered password
+     */
     private static String readPassword(Console console, Scanner scanner, String errorMessage) {
         if (console != null) {
             char[] passwordArray = console.readPassword("Password: ");
