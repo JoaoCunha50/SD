@@ -19,6 +19,11 @@ public class ClientInterface {
 
             int flag = 0;
             String command;
+            Console console = System.console(); // Obtém o console do sistema
+
+            if (console == null) {
+                System.err.println("Console not available. Password input will not be masked.");
+            }
 
             // Authentication loop
             while (flag == 0) {
@@ -29,9 +34,7 @@ public class ClientInterface {
                         System.out.print("Username: ");
                         String regUsername = getNonEmptyInput(scanner,
                                 "Username cannot be empty.\nPlease enter a username: ");
-                        System.out.print("Password: ");
-                        String regPassword = getNonEmptyInput(scanner,
-                                "Password cannot be empty.\nPlease enter a password: ");
+                        String regPassword = readPassword(console, scanner, "Password cannot be empty.\nPlease enter a password: ");
 
                         AuthRequest registerRequest = new AuthRequest(AuthRequest.REGISTER, regUsername, regPassword);
                         byte[] regRequestBytes = registerRequest.getRequestBytes();
@@ -48,9 +51,7 @@ public class ClientInterface {
                         System.out.print("Username: ");
                         String loginUsername = getNonEmptyInput(scanner,
                                 "Username cannot be empty. Please enter a username: ");
-                        System.out.print("Password: ");
-                        String loginPassword = getNonEmptyInput(scanner,
-                                "Password cannot be empty. Please enter a password: ");
+                        String loginPassword = readPassword(console, scanner, "Password cannot be empty. Please enter a password: ");
 
                         AuthRequest loginRequest = new AuthRequest(AuthRequest.LOGIN, loginUsername, loginPassword);
                         byte[] loginRequestBytes = loginRequest.getRequestBytes();
@@ -143,7 +144,6 @@ public class ClientInterface {
         }
     }
 
-    // Utility method to get non-empty input from the user
     private static String getNonEmptyInput(Scanner scanner, String errorMessage) {
         String input;
         do {
@@ -153,5 +153,16 @@ public class ClientInterface {
             }
         } while (input.trim().isEmpty());
         return input;
+    }
+
+    private static String readPassword(Console console, Scanner scanner, String errorMessage) {
+        if (console != null) {
+            char[] passwordArray = console.readPassword("Password: ");
+            return new String(passwordArray);
+        } else {
+            // Fallback if console is not available
+            System.out.print("Password: ");
+            return getNonEmptyInput(scanner, errorMessage);
+        }
     }
 }
