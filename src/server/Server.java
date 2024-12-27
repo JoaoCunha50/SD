@@ -173,12 +173,14 @@ public class Server implements Serializable {
                         int success = user.registerAuth(userDatabase);
                         if (success == 1) {
                             System.out.println("User added with Username: " + user.getUsername());
+                            out.writeInt(1);
                             out.writeUTF("User registered successfully!");
                             out.flush();
                             System.out.println("Sent notification to client");
                             System.out.println();
                             flag = 1;
                         } else {
+                            out.writeInt(0);
                             out.writeUTF("There is already a user with such credentials.");
                             out.flush();
                             System.out.println("Sent notification to client");
@@ -189,17 +191,20 @@ public class Server implements Serializable {
                         // Handle user login
                         int success = user.loginAuth(userDatabase);
                         if (success == 1) {
+                            out.writeInt(1);
                             out.writeUTF("User logged in successfully!");
                             out.flush();
                             System.out.println("Sent notification to client");
                             System.out.println();
                             flag = 1;
                         } else if (success == -1) {
+                            out.writeInt(0);
                             out.writeUTF("Password is invalid!");
                             out.flush();
                             System.out.println("Sent notification to client");
                             System.out.println();
                         } else {
+                            out.writeInt(0);
                             out.writeUTF("There is no user with such credentials.");
                             out.flush();
                             System.out.println("Sent notification to client");

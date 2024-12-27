@@ -39,7 +39,9 @@ public class ClientInterface {
         Client client = new Client();
 
         try (
-                DataInputStream in = client.getInputStream(); DataOutputStream out = client.getOutputStream(); Scanner scanner = new Scanner(System.in)) {
+                DataInputStream in = client.getInputStream();
+                DataOutputStream out = client.getOutputStream();
+                Scanner scanner = new Scanner(System.in)) {
 
             int flag = 0;
             String command;
@@ -58,35 +60,44 @@ public class ClientInterface {
                         System.out.print("Username: ");
                         String regUsername = getNonEmptyInput(scanner,
                                 "Username cannot be empty.\nPlease enter a username: ");
-                        String regPassword = readPassword(console, scanner, "Password cannot be empty.\nPlease enter a password: ");
+                        String regPassword = readPassword(console, scanner,
+                                "Password cannot be empty.\nPlease enter a password: ");
 
                         AuthRequest registerRequest = new AuthRequest(AuthRequest.REGISTER, regUsername, regPassword);
                         byte[] regRequestBytes = registerRequest.getRequestBytes();
                         out.writeInt(regRequestBytes.length);
                         out.write(regRequestBytes);
-
+                        int success = in.readInt();
                         String message = in.readUTF();
                         System.out.println(message);
 
                         out.flush();
-                        yield 1;
+                        if (success == 1) {
+                            yield 1;
+                        } else
+                            yield 0;
                     }
                     case "login" -> {
                         System.out.print("Username: ");
                         String loginUsername = getNonEmptyInput(scanner,
                                 "Username cannot be empty. Please enter a username: ");
-                        String loginPassword = readPassword(console, scanner, "Password cannot be empty. Please enter a password: ");
+                        String loginPassword = readPassword(console, scanner,
+                                "Password cannot be empty. Please enter a password: ");
 
                         AuthRequest loginRequest = new AuthRequest(AuthRequest.LOGIN, loginUsername, loginPassword);
                         byte[] loginRequestBytes = loginRequest.getRequestBytes();
                         out.writeInt(loginRequestBytes.length);
                         out.write(loginRequestBytes);
-
+                        
+                        int success = in.readInt();
                         String message = in.readUTF();
                         System.out.println(message);
 
                         out.flush();
-                        yield 1;
+                        if (success == 1) {
+                            yield 1;
+                        } else
+                            yield 0;
                     }
                     default -> {
                         System.out.println("Unknown command. Please enter 'register' or 'login'.");
@@ -156,9 +167,11 @@ public class ClientInterface {
                         System.out.print("Key: ");
                         String getKey = getNonEmptyInput(scanner, "Key cannot be empty. Please enter a key: ");
                         System.out.print("Key Condition: ");
-                        String getKeyCond = getNonEmptyInput(scanner, "Key Condition cannot be empty. Please enter a key: ");
+                        String getKeyCond = getNonEmptyInput(scanner,
+                                "Key Condition cannot be empty. Please enter a key: ");
                         System.out.print("Value Condition: ");
-                        String getValueCond = getNonEmptyInput(scanner, "Value Condition cannot be empty. Please enter a key: ");
+                        String getValueCond = getNonEmptyInput(scanner,
+                                "Value Condition cannot be empty. Please enter a key: ");
                         byte[] valueCondBytes = getValueCond.getBytes();
 
                         byte[] info = client.getWhen(getKey, getKeyCond, valueCondBytes);
@@ -175,7 +188,8 @@ public class ClientInterface {
                     }
                     default ->
                         System.out
-                                .println("Unknown command. Please enter 'put', 'get', 'multiPut', 'multiGet' or 'exit'.");
+                                .println(
+                                        "Unknown command. Please enter 'put', 'get', 'multiPut', 'multiGet' or 'exit'.");
                 }
             }
         } catch (IOException e) {
@@ -187,7 +201,7 @@ public class ClientInterface {
      * Prompts the user for non-empty input. If the user enters an empty string,
      * the input is requested again.
      *
-     * @param scanner the scanner used to read the input
+     * @param scanner      the scanner used to read the input
      * @param errorMessage the message to be displayed if the input is empty
      * @return the non-empty user input
      */
@@ -206,8 +220,8 @@ public class ClientInterface {
      * Reads the password from the user input. If a console is available, the
      * password is masked. Otherwise, the password is entered as plain text.
      *
-     * @param console the system console (may be <code>null</code>)
-     * @param scanner the scanner used if the console is unavailable
+     * @param console      the system console (may be <code>null</code>)
+     * @param scanner      the scanner used if the console is unavailable
      * @param errorMessage the message to be displayed if the password is empty
      * @return the user-entered password
      */
