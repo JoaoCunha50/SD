@@ -9,6 +9,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * The <code>Server</code> class is responsible for handling client connections,
@@ -47,6 +50,9 @@ public class Server implements Serializable {
      * Thread pool to handle client requests concurrently.
      */
     private final ExecutorService threadPool = Executors.newCachedThreadPool();
+
+    private final Lock lock = new ReentrantLock();
+    private final Condition condition = lock.newCondition();
 
     /**
      * File paths for storing the user database and data storage.
@@ -213,28 +219,51 @@ public class Server implements Serializable {
                         byte[] value = new byte[length];
                         in.read(value);
 
-                        dataStorage.put(key, value);
-                        System.out.println("Info successfully stored -> Key: " + key + " | Value: " + new String(value));
+                        lock.lock();
+                        try{
+                            dataStorage.put(key, value);
+                        } finally{
+                            condition.signalAll();
+                            lock.unlock();
+                        }
+                        System.out.println(
+                                "Info successfully stored -> Key: " + key + " | Value: " + new String(value));
                         out.writeUTF("Info successfully stored!");
                         out.flush();
                     }
                     case "multiPut" -> {
                         int N = in.readInt();
+
                         for (int i = 0; i < N; i++) {
                             String key = in.readUTF();
                             int length = in.readInt();
                             byte[] value = new byte[length];
                             in.read(value);
 
-                            System.out.println("Info successfully stored -> Key: " + key + " | Value: " + new String(value) + "\n");
-                            dataStorage.put(key, value);
+                            System.out.println(
+                                    "Info successfully stored -> Key: " + key + " | Value: " + new String(value)
+                                            + "\n");
+                            lock.lock();
+                            try{
+                                dataStorage.put(key, value);
+                            } finally {
+                                condition.signalAll();
+                                lock.unlock();
+                            }
                         }
+
                         out.writeUTF("Info successfully stored!");
                         out.flush();
                     }
                     case "get" -> {
                         String key = in.readUTF();
-                        byte[] taskResponse = dataStorage.get(key);
+                        byte[] taskResponse = null;
+                        lock.lock();
+                        try{
+                            taskResponse = dataStorage.get(key);
+                        } finally {
+                            lock.unlock();
+                        }
                         if (taskResponse != null) {
                             System.out.println("Info stored : " + taskResponse);
                             out.writeInt(taskResponse.length);
@@ -242,7 +271,8 @@ public class Server implements Serializable {
                             out.flush();
                         } else {
                             System.out.println("No info found, signal the client");
-                            out.writeUTF("There is no information associated with the requested key ( " + key + " )");
+                            out.writeUTF(
+                                    "There is no information associated with the requested key ( " + key + " )");
                             out.flush();
                         }
                     }
@@ -253,7 +283,12 @@ public class Server implements Serializable {
                             String key = in.readUTF();
                             byte[] value = dataStorage.get(key);
                             if (value != null) {
-                                pairs.put(key, value);
+                                lock.lock();
+                                try{
+                                    pairs.put(key, value);
+                                } finally {
+                                    lock.lock();
+                                }
                             } else {
                                 System.out.println("There is no value associated with '" + key + "'\n");
                             }
@@ -273,6 +308,37 @@ public class Server implements Serializable {
                             out.flush();
                         }
                     }
+                    case "getWhen" -> {
+                        String key = in.readUTF();
+                        String keyCond = in.readUTF();
+                        int length = in.readInt();
+                        byte[] valueCond = new byte[length];
+                        in.read(valueCond);
+
+                        lock.lock();
+                        try {
+                            while (!isConditionSatisfied(keyCond, valueCond)) {
+                                condition.await();
+                            }
+                            byte[] taskResponse = dataStorage.get(key);
+                            if (taskResponse != null) {
+                                System.out.println("Info stored : " + new String(taskResponse));
+                                out.writeInt(taskResponse.length);
+                                out.write(taskResponse);
+                                out.flush();
+                            } else {
+                                System.out.println("No info found, signal the client");
+                                out.writeUTF(
+                                        "There is no information associated with the requested key ( " + key + " )");
+                                out.flush();
+                            }
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            out.writeInt(0);
+                        } finally {
+                            lock.unlock();
+                        }
+                    }
                     case "exit" -> {
                         System.out.println("Client with username " + user.getUsername() + " disconnected.");
                         closeConnection(in, out, clientSocket);
@@ -284,6 +350,14 @@ public class Server implements Serializable {
         } catch (IOException e) {
             System.out.println("Error handling client: " + e.getMessage());
         }
+    }
+
+    private boolean isConditionSatisfied(String keyCond, byte[] valueCond) {
+        byte[] value = dataStorage.get(keyCond);
+        if(value == null){
+            return false;
+        }
+        return java.util.Arrays.equals(value, valueCond);
     }
 
     /**

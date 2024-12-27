@@ -208,6 +208,31 @@ public class Client {
         }
     }
 
+    public byte[] getWhen(String key, String keyCond, byte[] valueCond) {
+        try{
+            out.writeUTF("getWhen");
+            out.writeUTF(key);
+            out.writeUTF(keyCond);
+            out.writeInt(valueCond.length);
+            out.write(valueCond);
+
+            System.out.println("Task sent.");
+
+            int length = in.readInt();
+            byte[] info = null;
+
+            if (length > 0) {
+                info = new byte[length];
+                in.read(info);
+            }
+
+            return info;
+        } catch (IOException e){
+            System.out.println(e.getMessage());
+            return null;
+        }
+    }
+
     /**
      * Closes the client connection by closing the input/output streams and the
      * socket.

@@ -97,7 +97,7 @@ public class ClientInterface {
 
             // Interaction loop
             while (true) {
-                System.out.print("Enter command (put/get/multiPut/multiGet/exit): ");
+                System.out.print("Enter command (put/get/multiPut/multiGet/getWhen/exit): ");
                 command = scanner.nextLine();
 
                 switch (command) {
@@ -150,6 +150,20 @@ public class ClientInterface {
                                 System.out.println(
                                         "Key: " + entry.getKey() + " | Value: " + new String(entry.getValue()) + "\n");
                             }
+                        }
+                    }
+                    case "getWhen" -> {
+                        System.out.print("Key: ");
+                        String getKey = getNonEmptyInput(scanner, "Key cannot be empty. Please enter a key: ");
+                        System.out.print("Key Condition: ");
+                        String getKeyCond = getNonEmptyInput(scanner, "Key Condition cannot be empty. Please enter a key: ");
+                        System.out.print("Value Condition: ");
+                        String getValueCond = getNonEmptyInput(scanner, "Value Condition cannot be empty. Please enter a key: ");
+                        byte[] valueCondBytes = getValueCond.getBytes();
+
+                        byte[] info = client.getWhen(getKey, getKeyCond, valueCondBytes);
+                        if (info != null) {
+                            System.out.println("Response: " + new String(info));
                         }
                     }
                     case "exit" -> {
