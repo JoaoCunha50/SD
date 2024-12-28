@@ -1,32 +1,34 @@
 #!/bin/bash
 # ===============================
-# PERFORMANCE TEST SCRIPT: PUT Operations for Multiple Clients with Unique Keys
-# ===============================
-#
-# This script tests the performance of PUT operations for 5 clients on a Java application.
-# Each client is registered with unique usernames and each client gets unique keys for their PUT operations.
-# The script measures and displays the time taken for each client’s operations separately.
+# PERFORMANCE TEST SCRIPT: PUT Operations in Parallel for Multiple Clients
 # ===============================
 
 # Definition of colors for terminal output
-GREEN='\033[0;32m'      # Green for success messages
-BLUE='\033[0;34m'       # Blue for general messages
-YELLOW='\033[1;33m'     # Yellow for emphasis
-CYAN='\033[0;36m'       # Cyan for info messages
-PURPLE='\033[0;35m'     # Purple for special info
-BOLD='\033[1m'          # Bold text
-NC='\033[0m'            # No Color (reset)
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+PURPLE='\033[0;35m'
+BOLD='\033[1m'
+NC='\033[0m'
 
-# Function to draw a line in the terminal for visual separation
+# Create results directory if it doesn't exist
+results_dir="results"
+mkdir -p "$results_dir"
+
+# Draw a line in the terminal for visual separation
 draw_line() {
     echo -e "${BLUE}=================================${NC}"
 }
 
-# Java program configuration (this assumes the Java application is in the ../bin directory)
-java_program="java -cp ../bin client.ClientInterface"
+# Create temporary files to store results
+results_file=$(mktemp)
+json_file="$results_dir/multi_users_put_results.json"
+
+# Java program configuration
+java_program="java -cp ../../bin client.ClientInterface"
 
 # Function to generate a random string of alphanumeric characters
-# The length of the string is passed as an argument (default is 32 characters)
 generate_random_string() {
     cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w ${1:-32} | head -n 1
 }
@@ -35,70 +37,100 @@ generate_random_string() {
 register_and_put() {
     local username=$1
     local password="test_password"
-
-    # Create a temporary file to store the script for this client
     temp_script=$(mktemp)
 
     # Build the script to register the client and perform PUT operations
-    cat << EOF > "$temp_script"
+    cat <<EOF >"$temp_script"
 register
 $username
 $password
 EOF
 
-    echo -e "${CYAN}➤ Generating small values for $username...${NC}"
-    # Add PUT commands for small values (10 characters each) with unique keys
     for i in {1..5}; do
         key="small_key_${username}_$i"
         value=$(generate_random_string 10)
-        echo "put" >> "$temp_script"
-        echo "$key" >> "$temp_script"
-        echo "$value" >> "$temp_script"
+        echo "put" >>"$temp_script"
+        echo "$key" >>"$temp_script"
+        echo "$value" >>"$temp_script"
     done
 
-    echo -e "${CYAN}➤ Generating medium values for $username...${NC}"
-    # Add PUT commands for medium values (100 characters each) with unique keys
     for i in {1..5}; do
         key="medium_key_${username}_$i"
         value=$(generate_random_string 100)
-        echo "put" >> "$temp_script"
-        echo "$key" >> "$temp_script"
-        echo "$value" >> "$temp_script"
+        echo "put" >>"$temp_script"
+        echo "$key" >>"$temp_script"
+        echo "$value" >>"$temp_script"
     done
 
-    echo -e "${CYAN}➤ Generating large values for $username...${NC}"
-    # Add PUT commands for large values (1000 characters each) with unique keys
     for i in {1..5}; do
         key="large_key_${username}_$i"
         value=$(generate_random_string 1000)
-        echo "put" >> "$temp_script"
-        echo "$key" >> "$temp_script"
-        echo "$value" >> "$temp_script"
+        echo "put" >>"$temp_script"
+        echo "$key" >>"$temp_script"
+        echo "$value" >>"$temp_script"
     done
 
-    # Add the exit command to the script
-    echo "exit" >> "$temp_script"
-
-    echo -e "${PURPLE}Starting tests for $username...${NC}"
-    draw_line
+    echo "exit" >>"$temp_script"
 
     # Measure the time for PUT operations for this client
-    start_time=$(date +%s.%N)   # Capture start time
-    cat "$temp_script" | $java_program
-    end_time=$(date +%s.%N)     # Capture end time
-    duration=$(echo "$end_time - $start_time" | bc)  # Calculate the duration
+    start_time=$(date +%s.%N)
+    cat "$temp_script" | $java_program >/dev/null 2>&1
+    end_time=$(date +%s.%N)
+    duration=$(echo "$end_time - $start_time" | bc)
 
-    draw_line
-    # Display the total execution time for the PUT operations for this client
-    echo -e "${BOLD}Total execution time for $username's PUT operations:${NC} ${GREEN}$duration${NC} seconds"
-    draw_line
+    # Extract client number from username for sorting
+    client_num=$(echo "$username" | grep -o '[0-9]\+')
+    # Save result to temporary file with client number, username and duration
+    printf "%d %s %s\n" "$client_num" "$username" "$duration" >>"$results_file"
 
-    # Clean up the temporary file
     rm "$temp_script"
 }
 
-# Register and perform PUT operations for 5 clients
-for i in {1..20}; do
+max_parallel=60
+pids=()
+
+# Initialize JSON file with opening brace
+echo "{" >"$json_file"
+
+for i in {1..60}; do
     username="client_user_$i"
-    register_and_put $username
+
+    # Run in background
+    register_and_put $username &
+    pids+=($!) # Store the process ID (PID)
+
+    # Wait for background jobs if we reach the max_parallel limit
+    if ((${#pids[@]} >= max_parallel)); then
+        wait -n               # Wait for any background job to finish
+        pids=(${pids[@]/$!/}) # Remove completed PID
+    fi
 done
+
+# Wait for any remaining background jobs
+wait
+
+# Print sorted results and build JSON
+echo -e "\n${BOLD}Execution times sorted by client number:${NC}"
+draw_line
+
+# Process results and create JSON entries
+sort -n "$results_file" | while read -r client_num username duration; do
+    printf "${BOLD}%-20s${NC} ${GREEN}%s${NC} seconds\n" "$username" "$duration"
+    # Add JSON entry (with comma for all except last line)
+    if [ "$client_num" -eq 60 ]; then
+        echo "  \"$username\": $duration" >>"$json_file"
+    else
+        echo "  \"$username\": $duration," >>"$json_file"
+    fi
+done
+
+# Close JSON file with closing brace
+echo "}" >>"$json_file"
+
+draw_line
+
+# Clean up temporary file
+rm "$results_file"
+
+echo -e "${GREEN}All operations completed!${NC}"
+echo -e "${CYAN}Results also saved to $json_file${NC}"

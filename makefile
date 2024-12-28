@@ -2,6 +2,7 @@
 SRC_DIR = src
 BIN_DIR = bin
 DATA_DIR = Data
+RES_DIR = src/tests/results
 
 # Arquivos fontes e classes
 SOURCES = $(SRC_DIR)/client/ClientInterface.java \
@@ -29,7 +30,7 @@ $(BIN_DIR)/%.class: $(SRC_DIR)/%.java
 
 # Limpeza
 clean:
-	rm -rf $(BIN_DIR) $(DATA_DIR)
+	rm -rf $(BIN_DIR) $(DATA_DIR) $(RES_DIR)
 
 # Executar o cliente
 client: all

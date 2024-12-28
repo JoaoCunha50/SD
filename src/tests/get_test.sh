@@ -22,13 +22,20 @@ PURPLE='\033[0;35m'     # Purple for special info
 BOLD='\033[1m'          # Bold text
 NC='\033[0m'            # No Color (reset)
 
+# Create results directory if it doesn't exist
+results_dir="results"
+mkdir -p "$results_dir"
+
+# Create results file
+json_file="$results_dir/single_user_get_results.json"
+
 # Function to draw a line in the terminal for visual separation
 draw_line() {
     echo -e "${BLUE}=================================${NC}"
 }
 
 # Java program configuration (this assumes the Java application is in the ../bin directory)
-java_program="java -cp ../bin client.ClientInterface"
+java_program="java -cp ../../bin client.ClientInterface"
 
 # Credentials for login during the performance test
 username="test_user_get"
@@ -121,6 +128,10 @@ cat "$login_script" | $java_program
 end_time=$(date +%s.%N)     # Capture end time
 duration=$(echo "$end_time - $start_time" | bc)  # Calculate the duration
 
+# Save results in JSON format
+echo "{\"$username\": $duration}" > "$json_file"
+
+
 draw_line
 # Display the total execution time for the GET operations
 echo -e "${BOLD}Total execution time for GETs:${NC} ${GREEN}$duration${NC} seconds"
@@ -131,3 +142,4 @@ rm "$setup_script"
 rm "$get_script"
 rm "$login_script"
 
+echo -e "${CYAN}Results also saved to $json_file${NC}"

@@ -20,13 +20,20 @@ PURPLE='\033[0;35m'     # Purple for special info
 BOLD='\033[1m'          # Bold text
 NC='\033[0m'            # No Color (reset)
 
+# Create results directory if it doesn't exist
+results_dir="results"
+mkdir -p "$results_dir"
+
+# Create results file
+json_file="$results_dir/single_user_put_results.json"
+
 # Function to draw a line in the terminal for visual separation
 draw_line() {
     echo -e "${BLUE}=================================${NC}"
 }
 
 # Java program configuration (this assumes the Java application is in the ../bin directory)
-java_program="java -cp ../bin client.ClientInterface"
+java_program="java -cp ../../bin client.ClientInterface"
 
 # Credentials for login during the performance test
 username="test_user_put"
@@ -36,6 +43,16 @@ password="test_password_put"
 # The length of the string is passed as an argument (default is 32 characters)
 generate_random_string() {
     cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w ${1:-32} | head -n 1
+}
+
+# Function to format number - adds leading zero only if less than 1
+format_number() {
+    local num=$1
+    if (( $(echo "$num < 1" | bc -l) )) && (( $(echo "$num > 0" | bc -l) )); then
+        echo "0$num"
+    else
+        echo "$num"
+    fi
 }
 
 # Create a temporary file to store the complete script
@@ -94,12 +111,17 @@ start_time=$(date +%s.%N)   # Capture start time
 cat "$temp_script" | $java_program
 end_time=$(date +%s.%N)     # Capture end time
 duration=$(echo "$end_time - $start_time" | bc)  # Calculate the duration
+formatted_duration=$(format_number $duration)
 
 draw_line
 # Display the total execution time for the PUT operations
-echo -e "${BOLD}Total execution time:${NC} ${GREEN}$duration${NC} seconds"
+echo -e "${BOLD}Total execution time:${NC} ${GREEN}$formatted_duration${NC} seconds"
 draw_line
+
+# Save results in JSON format
+echo "{\"$username\": $formatted_duration}" > "$json_file"
 
 # Clean up the temporary file
 rm "$temp_script"
 
+echo -e "${CYAN}Results also saved to $json_file${NC}"
