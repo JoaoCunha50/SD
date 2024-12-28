@@ -9,7 +9,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The <code>Client</code> class represents a client that connects to a server via a TCP
+ * The <code>Client</code> class represents a client that connects to a server
+ * via a TCP
  * socket. It provides methods for sending data, such as putting and getting
  * key-value pairs, and closing the connection with the server.
  * <p>
@@ -37,7 +38,7 @@ public class Client {
             this.in = new DataInputStream(ClientSocket.getInputStream());
             this.out = new DataOutputStream(ClientSocket.getOutputStream());
         } catch (IOException e) {
-            System.out.println(e.getMessage());
+            System.out.println("\u001B[31m[ERROR]\u001B[0m " + e.getMessage());
         }
     }
 
@@ -87,7 +88,7 @@ public class Client {
     }
 
     /**
-     * Sets the socket connection to a new client sockets.
+     * Sets the socket connection to a new client socket.
      *
      * @param clientSocket The new `Socket` object.
      */
@@ -108,29 +109,29 @@ public class Client {
             out.writeInt(value.length);
             out.write(value);
 
-            System.out.println("Task sent.");
+            System.out.println("\u001B[36m[INFO]\u001B[0m Task sent.");
             String response = in.readUTF();
-            System.out.println("Response: " + response);
+            System.out.println("\u001B[32m[RESPONSE]\u001B[0m " + response);
 
         } catch (IOException e) {
-            System.out.println(e.getMessage());
+            System.out.println("\u001B[31m[ERROR]\u001B[0m " + e.getMessage());
         }
     }
 
     /**
-     * Sends a "get" request to the server to retreive the value for the
+     * Sends a "get" request to the server to retrieve the value for the
      * specified key.
      *
      * @param key The key whose value is to be retrieved..
      * @return A byte array representing the value associated with the key, or
-     * null if no data is found.
+     *         null if no data is found.
      */
     public byte[] get(String key) {
         try {
             out.writeUTF("get");
             out.writeUTF(key);
 
-            System.out.println("Task sent.");
+            System.out.println("\u001B[36m[INFO]\u001B[0m Task sent.");
 
             int length = in.readInt();
             byte[] info = null;
@@ -142,7 +143,7 @@ public class Client {
 
             return info;
         } catch (IOException e) {
-            System.out.println(e.getMessage());
+            System.out.println("\u001B[31m[ERROR]\u001B[0m " + e.getMessage());
             return null;
         }
     }
@@ -163,12 +164,12 @@ public class Client {
                 out.write(entry.getValue());
             }
 
-            System.out.println("Task sent.");
+            System.out.println("\u001B[36m[INFO]\u001B[0m Task sent.");
             String response = in.readUTF();
-            System.out.println("Response: " + response);
+            System.out.println("\u001B[32m[RESPONSE]\u001B[0m " + response);
 
         } catch (IOException e) {
-            System.out.println(e.getMessage());
+            System.out.println("\u001B[31m[ERROR]\u001B[0m " + e.getMessage());
         }
     }
 
@@ -177,7 +178,7 @@ public class Client {
      *
      * @param keys A list of keys whose values are to be retrieved.
      * @return A map of keys and their corresponding byte array values, or null
-     * if no data is found.
+     *         if no data is found.
      */
     public Map<String, byte[]> multiGet(List<String> keys) {
         try {
@@ -188,7 +189,7 @@ public class Client {
                 out.writeUTF(entry);
             }
 
-            System.out.println("Task sent.");
+            System.out.println("\u001B[36m[INFO]\u001B[0m Task sent.");
             Map<String, byte[]> responses = new HashMap<>();
 
             int length = in.readInt();
@@ -203,20 +204,20 @@ public class Client {
 
             return responses;
         } catch (IOException e) {
-            System.out.println(e.getMessage());
+            System.out.println("\u001B[31m[ERROR]\u001B[0m " + e.getMessage());
             return null;
         }
     }
 
     public byte[] getWhen(String key, String keyCond, byte[] valueCond) {
-        try{
+        try {
             out.writeUTF("getWhen");
             out.writeUTF(key);
             out.writeUTF(keyCond);
             out.writeInt(valueCond.length);
             out.write(valueCond);
 
-            System.out.println("Task sent.");
+            System.out.println("\u001B[36m[INFO]\u001B[0m Task sent.");
 
             int length = in.readInt();
             byte[] info = null;
@@ -227,8 +228,8 @@ public class Client {
             }
 
             return info;
-        } catch (IOException e){
-            System.out.println(e.getMessage());
+        } catch (IOException e) {
+            System.out.println("\u001B[31m[ERROR]\u001B[0m " + e.getMessage());
             return null;
         }
     }
@@ -242,8 +243,9 @@ public class Client {
             in.close();
             out.close();
             this.ClientSocket.close();
+            System.out.println("\u001B[36m[INFO]\u001B[0m Connection closed.");
         } catch (IOException e) {
-            System.out.println(e.getMessage());
+            System.out.println("\u001B[31m[ERROR]\u001B[0m " + e.getMessage());
         }
     }
 }

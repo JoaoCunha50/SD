@@ -48,23 +48,25 @@ public class ClientInterface {
 
             int flag = 0;
             String command;
-            Console console = System.console(); // Obtém o console do sistema
+            Console console = System.console();
 
             if (console == null) {
-                System.err.println("Console not available. Password input will not be masked.");
+                System.err.println(
+                        "\u001B[31m[ERROR]\u001B[0m Console not available. Password input will not be masked.");
             }
 
             // Authentication loop
             while (flag == 0) {
-                System.out.print("Enter command (register/login): ");
-                command = getNonEmptyInput(scanner, "Command cannot be empty. Enter 'register' or 'login': ");
+                System.out.print("\u001B[33m[INPUT]\u001B[0m Enter command (register/login): ");
+                command = getNonEmptyInput(scanner,
+                        "\u001B[33m[WARNING]\u001B[0m Command cannot be empty. Enter 'register' or 'login': ");
                 flag = switch (command) {
                     case "register" -> {
-                        System.out.print("Username: ");
+                        System.out.print("\u001B[36m[AUTH]\u001B[0m Username: ");
                         String regUsername = getNonEmptyInput(scanner,
-                                "Username cannot be empty.\nPlease enter a username: ");
+                                "\u001B[33m[WARNING]\u001B[0m Username cannot be empty.\nPlease enter a username: ");
                         String regPassword = readPassword(console, scanner,
-                                "Password cannot be empty.\nPlease enter a password: ");
+                                "\u001B[33m[WARNING]\u001B[0m Password cannot be empty.\nPlease enter a password: ");
 
                         AuthRequest registerRequest = new AuthRequest(AuthRequest.REGISTER, regUsername, regPassword);
                         byte[] regRequestBytes = registerRequest.getRequestBytes();
@@ -72,7 +74,7 @@ public class ClientInterface {
                         out.write(regRequestBytes);
                         int success = in.readInt();
                         String message = in.readUTF();
-                        System.out.println(message);
+                        System.out.println("\u001B[32m[RESPONSE]\u001B[0m " + message);
 
                         out.flush();
                         if (success == 1) {
@@ -81,11 +83,11 @@ public class ClientInterface {
                             yield 0;
                     }
                     case "login" -> {
-                        System.out.print("Username: ");
+                        System.out.print("\u001B[36m[AUTH]\u001B[0m Username: ");
                         String loginUsername = getNonEmptyInput(scanner,
-                                "Username cannot be empty. Please enter a username: ");
+                                "\u001B[33m[WARNING]\u001B[0m Username cannot be empty. Please enter a username: ");
                         String loginPassword = readPassword(console, scanner,
-                                "Password cannot be empty. Please enter a password: ");
+                                "\u001B[33m[WARNING]\u001B[0m Password cannot be empty. Please enter a password: ");
 
                         AuthRequest loginRequest = new AuthRequest(AuthRequest.LOGIN, loginUsername, loginPassword);
                         byte[] loginRequestBytes = loginRequest.getRequestBytes();
@@ -94,7 +96,7 @@ public class ClientInterface {
 
                         int success = in.readInt();
                         String message = in.readUTF();
-                        System.out.println(message);
+                        System.out.println("\u001B[32m[RESPONSE]\u001B[0m " + message);
 
                         out.flush();
                         if (success == 1) {
@@ -103,7 +105,8 @@ public class ClientInterface {
                             yield 0;
                     }
                     default -> {
-                        System.out.println("Unknown command. Please enter 'register' or 'login'.");
+                        System.out.println(
+                                "\u001B[31m[ERROR]\u001B[0m Unknown command. Please enter 'register' or 'login'.");
                         yield 0;
                     }
                 };
@@ -111,29 +114,33 @@ public class ClientInterface {
 
             // Interaction loop
             while (true) {
-                System.out.print("Enter command (put/get/multiPut/multiGet/getWhen/exit): ");
+                System.out.print("\u001B[33m[INPUT]\u001B[0m Enter command (put/get/multiPut/multiGet/getWhen/exit): ");
                 command = scanner.nextLine();
 
                 switch (command) {
                     case "put" -> {
-                        System.out.print("Key: ");
-                        String putKey = getNonEmptyInput(scanner, "Key cannot be empty. Please enter a key: ");
-                        System.out.print("Value: ");
-                        String value = getNonEmptyInput(scanner, "Value cannot be empty. Please enter a value: ");
+                        System.out.print("\u001B[33m[INPUT]\u001B[0m Key: ");
+                        String putKey = getNonEmptyInput(scanner,
+                                "\u001B[33m[WARNING]\u001B[0m Key cannot be empty. Please enter a key: ");
+                        System.out.print("\u001B[33m[INPUT]\u001B[0m Value: ");
+                        String value = getNonEmptyInput(scanner,
+                                "\u001B[33m[WARNING]\u001B[0m Value cannot be empty. Please enter a value: ");
                         byte[] valueBytes = value.getBytes();
                         client.put(putKey, valueBytes);
                     }
                     case "multiPut" -> {
-                        System.out.print("How many values you want to insert: ");
+                        System.out.print("\u001B[33m[INPUT]\u001B[0m How many values you want to insert: ");
                         int N = scanner.nextInt();
-                        scanner.nextLine(); // Limpa o buffer do Scanner após nextInt()
+                        scanner.nextLine(); // Clear Scanner buffer after nextInt()
                         HashMap<String, byte[]> pairs = new HashMap<>();
 
                         for (int i = 0; i < N; i++) {
-                            System.out.print("Key: ");
-                            String putKey = getNonEmptyInput(scanner, "Key cannot be empty. Please enter a key: ");
-                            System.out.print("Value: ");
-                            String value = getNonEmptyInput(scanner, "Value cannot be empty. Please enter a value: ");
+                            System.out.print("\u001B[33m[INPUT]\u001B[0m Key: ");
+                            String putKey = getNonEmptyInput(scanner,
+                                    "\u001B[33m[WARNING]\u001B[0m Key cannot be empty. Please enter a key: ");
+                            System.out.print("\u001B[33m[INPUT]\u001B[0m Value: ");
+                            String value = getNonEmptyInput(scanner,
+                                    "\u001B[33m[WARNING]\u001B[0m Value cannot be empty. Please enter a value: ");
                             byte[] valueBytes = value.getBytes();
                             pairs.put(putKey, valueBytes);
                         }
@@ -141,23 +148,25 @@ public class ClientInterface {
                     }
 
                     case "get" -> {
-                        System.out.print("Key: ");
-                        String getKey = getNonEmptyInput(scanner, "Key cannot be empty. Please enter a key: ");
+                        System.out.print("\u001B[33m[INPUT]\u001B[0m Key: ");
+                        String getKey = getNonEmptyInput(scanner,
+                                "\u001B[33m[WARNING]\u001B[0m Key cannot be empty. Please enter a key: ");
 
                         byte[] info = client.get(getKey);
                         if (info != null) {
-                            System.out.println("Response: " + new String(info));
+                            System.out.println("\u001B[32m[RESPONSE]\u001B[0m " + new String(info));
                         }
                     }
                     case "multiGet" -> {
-                        System.out.print("How many keys you want to retrieve: ");
+                        System.out.print("\u001B[33m[INPUT]\u001B[0m How many keys you want to retrieve: ");
                         int N = scanner.nextInt();
-                        scanner.nextLine(); // Limpa o buffer do Scanner após nextInt()
+                        scanner.nextLine(); // Clear Scanner buffer after nextInt()
                         ArrayList<String> keys = new ArrayList<>();
 
                         for (int i = 0; i < N; i++) {
-                            System.out.print("Key: ");
-                            String putKey = getNonEmptyInput(scanner, "Key cannot be empty. Please enter a key: ");
+                            System.out.print("\u001B[33m[INPUT]\u001B[0m Key: ");
+                            String putKey = getNonEmptyInput(scanner,
+                                    "\u001B[33m[WARNING]\u001B[0m Key cannot be empty. Please enter a key: ");
                             keys.add(putKey);
                         }
 
@@ -165,41 +174,42 @@ public class ClientInterface {
                         if (responses != null) {
                             for (Map.Entry<String, byte[]> entry : responses.entrySet()) {
                                 System.out.println(
-                                        "Key: " + entry.getKey() + " | Value: " + new String(entry.getValue()) + "\n");
+                                        "\u001B[32m[RESPONSE]\u001B[0m Key: " + entry.getKey() + " | Value: "
+                                                + new String(entry.getValue()) + "\n");
                             }
                         }
                     }
                     case "getWhen" -> {
-                        System.out.print("Key: ");
-                        String getKey = getNonEmptyInput(scanner, "Key cannot be empty. Please enter a key: ");
-                        System.out.print("Key Condition: ");
+                        System.out.print("\u001B[33m[INPUT]\u001B[0m Key: ");
+                        String getKey = getNonEmptyInput(scanner,
+                                "\u001B[33m[WARNING]\u001B[0m Key cannot be empty. Please enter a key: ");
+                        System.out.print("\u001B[33m[INPUT]\u001B[0m Key Condition: ");
                         String getKeyCond = getNonEmptyInput(scanner,
-                                "Key Condition cannot be empty. Please enter a key: ");
-                        System.out.print("Value Condition: ");
+                                "\u001B[33m[WARNING]\u001B[0m Key Condition cannot be empty. Please enter a key: ");
+                        System.out.print("\u001B[33m[INPUT]\u001B[0m Value Condition: ");
                         String getValueCond = getNonEmptyInput(scanner,
-                                "Value Condition cannot be empty. Please enter a key: ");
+                                "\u001B[33m[WARNING]\u001B[0m Value Condition cannot be empty. Please enter a key: ");
                         byte[] valueCondBytes = getValueCond.getBytes();
 
                         byte[] info = client.getWhen(getKey, getKeyCond, valueCondBytes);
                         if (info != null) {
-                            System.out.println("Response: " + new String(info));
+                            System.out.println("\u001B[32m[RESPONSE]\u001B[0m " + new String(info));
                         }
                     }
                     case "exit" -> {
-                        System.out.println("Exiting...");
-                        out.writeUTF("exit"); // Envie o comando exit
+                        System.out.println("\u001B[36m[INFO]\u001B[0m Exiting...");
+                        out.writeUTF("exit");
                         out.flush();
                         client.closeConnection();
                         return;
                     }
                     default ->
-                        System.out
-                                .println(
-                                        "Unknown command. Please enter 'put', 'get', 'multiPut', 'multiGet' or 'exit'.");
+                        System.out.println(
+                                "\u001B[31m[ERROR]\u001B[0m Unknown command. Please enter 'put', 'get', 'multiPut', 'multiGet' or 'exit'.");
                 }
             }
         } catch (IOException e) {
-            System.out.println(e.getMessage());
+            System.out.println("\u001B[31m[ERROR]\u001B[0m " + e.getMessage());
         }
     }
 
@@ -233,11 +243,10 @@ public class ClientInterface {
      */
     private static String readPassword(Console console, Scanner scanner, String errorMessage) {
         if (console != null) {
-            char[] passwordArray = console.readPassword("Password: ");
+            char[] passwordArray = console.readPassword("\u001B[36m[AUTH]\u001B[0m Password: ");
             return new String(passwordArray);
         } else {
-            // Fallback if console is not available
-            System.out.print("Password: ");
+            System.out.print("\u001B[36m[AUTH]\u001B[0m Password: ");
             return getNonEmptyInput(scanner, errorMessage);
         }
     }
