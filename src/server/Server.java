@@ -72,7 +72,7 @@ public class Server implements Serializable {
      * stopped.
      *
      * @param args Command-line arguments. The first argument should be the
-     *             number of semaphore permits.
+     * number of semaphore permits.
      */
     public static void main(String[] args) {
         if (args.length < 1) {
@@ -150,8 +150,7 @@ public class Server implements Serializable {
      */
     private void handleClient(Socket clientSocket) {
         try (
-                DataInputStream in = new DataInputStream(clientSocket.getInputStream());
-                DataOutputStream out = new DataOutputStream(clientSocket.getOutputStream())) {
+                DataInputStream in = new DataInputStream(clientSocket.getInputStream()); DataOutputStream out = new DataOutputStream(clientSocket.getOutputStream())) {
 
             User user = new User();
             int flag = 0;
@@ -168,10 +167,16 @@ public class Server implements Serializable {
 
                 // Authenticate the user based on the request type (REGISTER or LOGIN)
                 int requestType = authRequest.getType();
+                int success;
                 switch (requestType) {
                     case AuthRequest.REGISTER -> {
                         // Handle user registration
-                        int success = user.registerAuth(userDatabase);
+                        try {
+                            lock.lock();
+                            success = user.registerAuth(userDatabase);
+                        } finally {
+                            lock.unlock();
+                        }
                         if (success == 1) {
                             System.out.println("User added with Username: " + user.getUsername());
                             out.writeInt(1);
@@ -190,7 +195,12 @@ public class Server implements Serializable {
                     }
                     case AuthRequest.LOGIN -> {
                         // Handle user login
-                        int success = user.loginAuth(userDatabase);
+                        try {
+                            lock.lock();
+                            success = user.loginAuth(userDatabase);
+                        } finally {
+                            lock.unlock();
+                        }
                         if (success == 1) {
                             out.writeInt(1);
                             out.writeUTF("User logged in successfully!");
@@ -254,7 +264,7 @@ public class Server implements Serializable {
 
                             System.out.println(
                                     "Info successfully stored -> Key: " + key + " | Value: " + new String(value)
-                                            + "\n");
+                                    + "\n");
                             lock.lock();
                             try {
                                 if (!dataStorage.containsKey(key)) {
@@ -413,8 +423,8 @@ public class Server implements Serializable {
      * Closes the given client connection by closing its input/output streams
      * and the socket itself.
      *
-     * @param in     The input stream for the client.
-     * @param out    The output stream for the client.
+     * @param in The input stream for the client.
+     * @param out The output stream for the client.
      * @param socket The socket representing the client connection.
      */
     private void closeConnection(DataInputStream in, DataOutputStream out, Socket socket) {
@@ -432,8 +442,7 @@ public class Server implements Serializable {
      * data storage, to files.
      */
     private void saveState() {
-        try (ObjectOutputStream userOut = new ObjectOutputStream(new FileOutputStream(USER_DB_FILE));
-                ObjectOutputStream dataOut = new ObjectOutputStream(new FileOutputStream(DATA_STORAGE_FILE))) {
+        try (ObjectOutputStream userOut = new ObjectOutputStream(new FileOutputStream(USER_DB_FILE)); ObjectOutputStream dataOut = new ObjectOutputStream(new FileOutputStream(DATA_STORAGE_FILE))) {
 
             userOut.writeObject(userDatabase);
             dataOut.writeObject(dataStorage);
@@ -447,8 +456,7 @@ public class Server implements Serializable {
      * storage, from files.
      */
     private void loadState() {
-        try (ObjectInputStream userIn = new ObjectInputStream(new FileInputStream(USER_DB_FILE));
-                ObjectInputStream dataIn = new ObjectInputStream(new FileInputStream(DATA_STORAGE_FILE))) {
+        try (ObjectInputStream userIn = new ObjectInputStream(new FileInputStream(USER_DB_FILE)); ObjectInputStream dataIn = new ObjectInputStream(new FileInputStream(DATA_STORAGE_FILE))) {
 
             userDatabase.putAll((Map<String, User>) userIn.readObject());
             dataStorage.putAll((Map<String, byte[]>) dataIn.readObject());
