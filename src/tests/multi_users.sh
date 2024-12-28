@@ -86,13 +86,13 @@ EOF
     rm "$temp_script"
 }
 
-max_parallel=60
+max_parallel=15
 pids=()
 
 # Initialize JSON file with opening brace
 echo "{" >"$json_file"
 
-for i in {1..60}; do
+for i in {1..15}; do
     username="client_user_$i"
 
     # Run in background
@@ -117,7 +117,7 @@ draw_line
 sort -n "$results_file" | while read -r client_num username duration; do
     printf "${BOLD}%-20s${NC} ${GREEN}%s${NC} seconds\n" "$username" "$duration"
     # Add JSON entry (with comma for all except last line)
-    if [ "$client_num" -eq 60 ]; then
+    if [ "$client_num" -eq 15 ]; then
         echo "  \"$username\": $duration" >>"$json_file"
     else
         echo "  \"$username\": $duration," >>"$json_file"
