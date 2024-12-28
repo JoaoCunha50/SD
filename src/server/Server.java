@@ -72,11 +72,12 @@ public class Server implements Serializable {
      * stopped.
      *
      * @param args Command-line arguments. The first argument should be the
-     * number of semaphore permits.
+     *             number of semaphore permits.
      */
     public static void main(String[] args) {
         if (args.length < 1) {
-            System.err.println("Erro: É necessário fornecer o número de permissões do semáforo como argumento.");
+            System.err.println(
+                    "\u001B[31m[ERROR]\u001B[0m É necessário fornecer o número de permissões do semáforo como argumento.");
             System.exit(1);
         }
 
@@ -84,7 +85,7 @@ public class Server implements Serializable {
             int permits = Integer.parseInt(args[0]);
             semaforo = new Semaphore(permits);
         } catch (NumberFormatException e) {
-            System.err.println("Erro: O argumento deve ser um número inteiro.");
+            System.err.println("\u001B[31m[ERROR]\u001B[0m O argumento deve ser um número inteiro.");
             System.exit(1);
         }
 
@@ -94,7 +95,7 @@ public class Server implements Serializable {
 
         // Add shutdown hook to save state and close connections gracefully
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            System.out.println("\nGracefully shutting down the server...");
+            System.out.println("\n\u001B[33m[SHUTDOWN]\u001B[0m Gracefully shutting down the server...");
             server.gracefulShutdown();
         }));
 
@@ -109,7 +110,7 @@ public class Server implements Serializable {
      */
     public void start() {
         try (ServerSocket serverSocket = new ServerSocket(PORT)) {
-            System.out.println("Server is running on port " + PORT);
+            System.out.println("\u001B[32m[SERVER]\u001B[0m Server is running on port " + PORT);
 
             while (running) {
                 try {
@@ -123,7 +124,7 @@ public class Server implements Serializable {
                             semaforo.acquire(); // Acquire semaphore permit for client
                             handleClient(clientSocket);
                         } catch (InterruptedException ie) {
-                            System.out.println("Erro no semáforo: " + ie.getMessage());
+                            System.out.println("\u001B[31m[ERROR]\u001B[0m Erro no semáforo: " + ie.getMessage());
                             Thread.currentThread().interrupt(); // Re-interrupt the thread
                         } finally {
                             semaforo.release(); // Release the semaphore permit
@@ -132,12 +133,12 @@ public class Server implements Serializable {
                     });
                 } catch (SocketException e) {
                     if (running) {
-                        System.out.println("Erro no servidor: " + e.getMessage());
+                        System.out.println("\u001B[31m[ERROR]\u001B[0m Erro no servidor: " + e.getMessage());
                     }
                 }
             }
         } catch (IOException e) {
-            System.out.println("Erro ao iniciar o servidor: " + e.getMessage());
+            System.out.println("\u001B[31m[ERROR]\u001B[0m Erro ao iniciar o servidor: " + e.getMessage());
         }
     }
 
@@ -150,7 +151,8 @@ public class Server implements Serializable {
      */
     private void handleClient(Socket clientSocket) {
         try (
-                DataInputStream in = new DataInputStream(clientSocket.getInputStream()); DataOutputStream out = new DataOutputStream(clientSocket.getOutputStream())) {
+                DataInputStream in = new DataInputStream(clientSocket.getInputStream());
+                DataOutputStream out = new DataOutputStream(clientSocket.getOutputStream())) {
 
             User user = new User();
             int flag = 0;
@@ -178,18 +180,19 @@ public class Server implements Serializable {
                             lock.unlock();
                         }
                         if (success == 1) {
-                            System.out.println("User added with Username: " + user.getUsername());
+                            System.out.println(
+                                    "\u001B[32m[AUTH]\u001B[0m User added with Username: " + user.getUsername());
                             out.writeInt(1);
                             out.writeUTF("User registered successfully!");
                             out.flush();
-                            System.out.println("Sent notification to client");
+                            System.out.println("\u001B[36m[INFO]\u001B[0m Sent notification to client");
                             System.out.println();
                             flag = 1;
                         } else {
                             out.writeInt(0);
                             out.writeUTF("There is already a user with such credentials.");
                             out.flush();
-                            System.out.println("Sent notification to client");
+                            System.out.println("\u001B[36m[INFO]\u001B[0m Sent notification to client");
                             System.out.println();
                         }
                     }
@@ -205,20 +208,20 @@ public class Server implements Serializable {
                             out.writeInt(1);
                             out.writeUTF("User logged in successfully!");
                             out.flush();
-                            System.out.println("Sent notification to client");
+                            System.out.println("\u001B[36m[INFO]\u001B[0m Sent notification to client");
                             System.out.println();
                             flag = 1;
                         } else if (success == -1) {
                             out.writeInt(0);
                             out.writeUTF("Password is invalid!");
                             out.flush();
-                            System.out.println("Sent notification to client");
+                            System.out.println("\u001B[36m[INFO]\u001B[0m Sent notification to client");
                             System.out.println();
                         } else {
                             out.writeInt(0);
                             out.writeUTF("There is no user with such credentials.");
                             out.flush();
-                            System.out.println("Sent notification to client");
+                            System.out.println("\u001B[36m[INFO]\u001B[0m Sent notification to client");
                             System.out.println();
                         }
                     }
@@ -240,7 +243,8 @@ public class Server implements Serializable {
                             if (!dataStorage.containsKey(key)) {
                                 dataStorage.put(key, value);
                             } else {
-                                System.out.println("There is already a key with that value\n");
+                                System.out
+                                        .println("\u001B[33m[WARNING]\u001B[0m There is already a key with that value\n");
                                 out.writeUTF("There is already a key with that name!\n");
                                 break;
                             }
@@ -249,7 +253,8 @@ public class Server implements Serializable {
                             lock.unlock();
                         }
                         System.out.println(
-                                "Info successfully stored -> Key: " + key + " | Value: " + new String(value));
+                                "\u001B[32m[DATA]\u001B[0m Info successfully stored -> Key: " + key + " | Value: "
+                                        + new String(value));
                         out.writeUTF("Info successfully stored!");
                         out.flush();
                     }
@@ -263,16 +268,17 @@ public class Server implements Serializable {
                             in.read(value);
 
                             System.out.println(
-                                    "Info successfully stored -> Key: " + key + " | Value: " + new String(value)
-                                    + "\n");
+                                    "\u001B[32m[DATA]\u001B[0m Info successfully stored -> Key: " + key + " | Value: "
+                                            + new String(value)
+                                            + "\n");
                             lock.lock();
                             try {
                                 if (!dataStorage.containsKey(key)) {
                                     dataStorage.put(key, value);
                                 } else {
-                                    System.out.println("There is already a key with that name, notifiyng client\n");
+                                    System.out.println(
+                                            "\u001B[33m[WARNING]\u001B[0m There is already a key with that name, notifiyng client\n");
                                     out.writeUTF("There is already a key with that name!\n");
-                                    break;
                                 }
                             } finally {
                                 condition.signalAll();
@@ -293,12 +299,12 @@ public class Server implements Serializable {
                             lock.unlock();
                         }
                         if (taskResponse != null) {
-                            System.out.println("Info stored : " + new String(taskResponse));
+                            System.out.println("\u001B[32m[DATA]\u001B[0m Info stored : " + new String(taskResponse));
                             out.writeInt(taskResponse.length);
                             out.write(taskResponse);
                             out.flush();
                         } else {
-                            System.out.println("No info found, signal the client");
+                            System.out.println("\u001B[33m[WARNING]\u001B[0m No info found, signal the client");
                             out.writeUTF(
                                     "There is no information associated with the requested key ( " + key + " )");
                             out.flush();
@@ -318,7 +324,8 @@ public class Server implements Serializable {
                                     lock.lock();
                                 }
                             } else {
-                                System.out.println("There is no value associated with '" + key + "'\n");
+                                System.out.println(
+                                        "\u001B[33m[WARNING]\u001B[0m There is no value associated with '" + key + "'\n");
                             }
                         }
 
@@ -331,7 +338,7 @@ public class Server implements Serializable {
                                 out.flush();
                             }
                         } else {
-                            System.out.println("No info found, signal the client");
+                            System.out.println("\u001B[33m[WARNING]\u001B[0m No info found, signal the client");
                             out.writeUTF("There is no information associated with the requested keys");
                             out.flush();
                         }
@@ -350,12 +357,13 @@ public class Server implements Serializable {
                             }
                             byte[] taskResponse = dataStorage.get(key);
                             if (taskResponse != null) {
-                                System.out.println("Info stored : " + new String(taskResponse));
+                                System.out
+                                        .println("\u001B[32m[DATA]\u001B[0m Info stored : " + new String(taskResponse));
                                 out.writeInt(taskResponse.length);
                                 out.write(taskResponse);
                                 out.flush();
                             } else {
-                                System.out.println("No info found, signal the client");
+                                System.out.println("\u001B[33m[WARNING]\u001B[0m No info found, signal the client");
                                 out.writeUTF(
                                         "There is no information associated with the requested key ( " + key + " )");
                                 out.flush();
@@ -368,7 +376,8 @@ public class Server implements Serializable {
                         }
                     }
                     case "exit" -> {
-                        System.out.println("Client with username " + user.getUsername() + " disconnected.");
+                        System.out.println("\u001B[36m[INFO]\u001B[0m Client with username " + user.getUsername()
+                                + " disconnected.");
                         closeConnection(in, out, clientSocket);
                         Thread.currentThread().interrupt();
                         return;
@@ -376,7 +385,7 @@ public class Server implements Serializable {
                 }
             }
         } catch (IOException e) {
-            System.out.println("Error handling client: " + e.getMessage());
+            System.out.println("\u001B[31m[ERROR]\u001B[0m Error handling client: " + e.getMessage());
         }
     }
 
@@ -397,7 +406,7 @@ public class Server implements Serializable {
         threadPool.shutdown();
         try {
             if (!threadPool.awaitTermination(10, TimeUnit.SECONDS)) {
-                System.out.println("Forcing shutdown of remaining threads...");
+                System.out.println("\u001B[33m[SHUTDOWN]\u001B[0m Forcing shutdown of remaining threads...");
                 threadPool.shutdownNow();
             }
         } catch (InterruptedException e) {
@@ -411,11 +420,12 @@ public class Server implements Serializable {
                 socket.getOutputStream().close();
                 socket.close();
             } catch (IOException e) {
-                System.err.println("Error closing client connection: " + e.getMessage());
+                System.err.println("\u001B[31m[ERROR]\u001B[0m Error closing client connection: " + e.getMessage());
             }
         }
 
-        System.out.println("All client connections and threads closed. Server shutdown completed.");
+        System.out.println(
+                "\u001B[32m[SERVER]\u001B[0m All client connections and threads closed. Server shutdown completed.");
         running = false;
     }
 
@@ -423,8 +433,8 @@ public class Server implements Serializable {
      * Closes the given client connection by closing its input/output streams
      * and the socket itself.
      *
-     * @param in The input stream for the client.
-     * @param out The output stream for the client.
+     * @param in     The input stream for the client.
+     * @param out    The output stream for the client.
      * @param socket The socket representing the client connection.
      */
     private void closeConnection(DataInputStream in, DataOutputStream out, Socket socket) {
@@ -433,7 +443,7 @@ public class Server implements Serializable {
             out.close();
             socket.close();
         } catch (IOException e) {
-            System.out.println(e.getMessage());
+            System.out.println("\u001B[31m[ERROR]\u001B[0m " + e.getMessage());
         }
     }
 
@@ -442,12 +452,13 @@ public class Server implements Serializable {
      * data storage, to files.
      */
     private void saveState() {
-        try (ObjectOutputStream userOut = new ObjectOutputStream(new FileOutputStream(USER_DB_FILE)); ObjectOutputStream dataOut = new ObjectOutputStream(new FileOutputStream(DATA_STORAGE_FILE))) {
+        try (ObjectOutputStream userOut = new ObjectOutputStream(new FileOutputStream(USER_DB_FILE));
+                ObjectOutputStream dataOut = new ObjectOutputStream(new FileOutputStream(DATA_STORAGE_FILE))) {
 
             userOut.writeObject(userDatabase);
             dataOut.writeObject(dataStorage);
         } catch (IOException e) {
-            System.err.println("Error saving state: " + e.getMessage());
+            System.err.println("\u001B[31m[ERROR]\u001B[0m Error saving state: " + e.getMessage());
         }
     }
 
@@ -456,15 +467,17 @@ public class Server implements Serializable {
      * storage, from files.
      */
     private void loadState() {
-        try (ObjectInputStream userIn = new ObjectInputStream(new FileInputStream(USER_DB_FILE)); ObjectInputStream dataIn = new ObjectInputStream(new FileInputStream(DATA_STORAGE_FILE))) {
+        try (ObjectInputStream userIn = new ObjectInputStream(new FileInputStream(USER_DB_FILE));
+                ObjectInputStream dataIn = new ObjectInputStream(new FileInputStream(DATA_STORAGE_FILE))) {
 
             userDatabase.putAll((Map<String, User>) userIn.readObject());
             dataStorage.putAll((Map<String, byte[]>) dataIn.readObject());
-            System.out.println("State successfully loaded.");
+            System.out.println("\u001B[32m[STATE]\u001B[0m State successfully loaded.");
         } catch (FileNotFoundException e) {
-            System.out.println("No previous state found. Starting with empty maps");
+            System.out.println("\u001B[31m[STATE]\u001B[0m No previous state found. Starting with empty maps.");
         } catch (IOException | ClassNotFoundException e) {
-            System.err.println("Error loading state: " + e.getMessage());
+            System.err.println("\u001B[31m[STATE]\u001B[0m Error loading state: " + e.getMessage());
         }
     }
+
 }
